@@ -8,6 +8,7 @@ import traceback
 import streamlit as st
 
 from agent import analyze_document, ask_document_question, infer_user_style
+from knowledge_base.identify import identify_form
 from models import DocumentAnalysis
 from rag import build_knowledge_base, passages_to_dicts
 from pdf_reader import (
@@ -49,6 +50,7 @@ def _init_session_state() -> None:
         "user_style_notes": [],
         "knowledge_base": None,
         "last_rag_passages": [],
+        "form_identity": None,
         "last_error": None,
         "extraction_meta": None,
     }
@@ -71,6 +73,7 @@ def _reset_analysis_state() -> None:
     st.session_state.user_style_notes = []
     st.session_state.knowledge_base = None
     st.session_state.last_rag_passages = []
+    st.session_state.form_identity = None
     st.session_state.extraction_meta = None
     st.session_state.last_error = None
     st.session_state.pop("debug_error", None)
@@ -125,6 +128,10 @@ def _run_analysis(uploaded_file, selected_language: str) -> None:
             st.session_state.analysis_language = selected_language
             st.session_state.knowledge_base = build_knowledge_base(extraction.text)
             st.session_state.last_rag_passages = []
+            st.session_state.form_identity = identify_form(
+                extraction.text,
+                analysis.issuing_organization,
+            ).to_dict()
             st.session_state.extraction_meta = {
                 "used_ocr": extraction.used_ocr,
                 "truncated": extraction.truncated,
@@ -182,7 +189,12 @@ def _render_chat_section(selected_language: str) -> None:
         )
 
     for message in chat_history:
-        render_chat_bubble(message["content"], message["role"], selected_language)
+        render_chat_bubble(
+            message["content"],
+            message["role"],
+            selected_language,
+            message.get("citations"),
+        )
 
     pending_question = st.session_state.pop("pending_chat_question", None)
     user_input = st.chat_input(strings["chat_placeholder"])
@@ -199,7 +211,7 @@ def _render_chat_section(selected_language: str) -> None:
                     st.session_state.chat_history[:-1],
                     st.session_state.user_style_notes,
                 )
-                answer, passages = ask_document_question(
+                result = ask_document_question(
                     document_text=st.session_state.document_text,
                     initial_analysis=analysis,
                     question=question,
@@ -208,13 +220,20 @@ def _render_chat_section(selected_language: str) -> None:
                     user_style_notes=st.session_state.user_style_notes,
                     knowledge_base=st.session_state.knowledge_base,
                 )
-                st.session_state.last_rag_passages = passages_to_dicts(passages)
+                answer = result.text
+                citations = [item.to_dict() for item in result.official_citations]
+                st.session_state.last_rag_passages = passages_to_dicts(result.document_passages)
+                if result.identity:
+                    st.session_state.form_identity = result.identity.to_dict()
             except Exception as error:
                 answer = _map_exception_to_message(error, selected_language)
+                citations = []
                 st.session_state.debug_error = traceback.format_exc()
 
-        st.session_state.chat_history.append({"role": "assistant", "content": answer})
-        render_chat_bubble(answer, "assistant", selected_language)
+        st.session_state.chat_history.append(
+            {"role": "assistant", "content": answer, "citations": citations}
+        )
+        render_chat_bubble(answer, "assistant", selected_language, citations)
 
     if st.session_state.chat_history:
         _, toolbar_right = st.columns([4, 1])
@@ -338,6 +357,11 @@ def main() -> None:
                 height=260,
                 label_visibility="collapsed",
             )
+
+        identity = st.session_state.get("form_identity") or {}
+        if identity:
+            with st.expander(strings.get("form_identity", "Form identity")):
+                st.write(identity)
 
         kb = st.session_state.get("knowledge_base") or {}
         chunk_count = kb.get("chunk_count", 0)

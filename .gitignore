@@ -3,3 +3,10 @@ venv/
 __pycache__/
 *.pyc
 .streamlit/secrets.toml
+data/chroma/
+data/eval_chroma/
+data/*.json
+data/*.jsonl
+evals/reports/*.json
+evals/reports/*.md
+

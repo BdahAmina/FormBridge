@@ -25,6 +25,8 @@ FormBridge bridges this gap by combining PDF text extraction, OCR for scanned do
 - Urgency indicators (low / medium / high)
 - Numbered action plan and suggested formal Hebrew reply when relevant
 - Document-aware follow-up chat
+- Official Israeli knowledge base (RAG) with citations
+- Offline AI evaluations
 - Download analysis as TXT or Markdown
 - Privacy-focused processing (document analyzed per session, not stored on server)
 - RTL support for Arabic and Hebrew content
@@ -39,21 +41,24 @@ FormBridge bridges this gap by combining PDF text extraction, OCR for scanned do
 | PDF text extraction | pypdf |
 | OCR rendering | PyMuPDF (`pymupdf`) |
 | OCR engine | Tesseract (Hebrew, Arabic, English) |
+| Official RAG | Local hashed embeddings + persistent vector store |
 | Structured output | Pydantic |
 | Configuration | python-dotenv |
 
 ## Architecture Overview
 
-```text
-User (Streamlit UI)
-    │
-    ├─ app.py              → session state, user flow, chat
-    ├─ ui_components.py    → styling, cards, i18n strings
-    │
-    ├─ pdf_reader.py       → regular extraction → OCR fallback
-    │
-    ├─ agent.py            → CrewAI analysis + follow-up Q&A
-    └─ models.py           → Pydantic schema + JSON parsing
+```mermaid
+flowchart TD
+    upload[Uploaded PDF] --> extract[pdf_reader]
+    extract --> analyze[CrewAI + Gemini]
+    analyze --> docRag[Document RAG]
+    fixtures[Official fixtures / allowlist] --> ingest[knowledge_base.ingest]
+    ingest --> store[Vector store]
+    question[User question] --> retrieve[Official + document retrieval]
+    store --> retrieve
+    docRag --> retrieve
+    retrieve --> agent[Grounded Gemini answer]
+    agent --> cites[Citation cards]
 ```
 
 **Flow:**
@@ -62,8 +67,8 @@ User (Streamlit UI)
 2. `pdf_reader.py` extracts embedded text; if insufficient, it runs OCR.
 3. `agent.py` sends the text to Gemini via CrewAI with strict security and accuracy rules.
 4. The response is parsed into a `DocumentAnalysis` Pydantic model.
-5. `ui_components.py` renders each field in separate cards.
-6. Follow-up questions use the document text, structured analysis, and chat history.
+5. Follow-up questions retrieve uploaded-document passages **and** official knowledge-base chunks.
+6. Answers include citations. Official sources outrank Kol Zchut.
 
 ## Installation
 
@@ -157,17 +162,63 @@ Open the URL shown in the terminal (usually `http://localhost:8501`).
 
 ```text
 FormBridge/
-├── app.py              # Main Streamlit application
-├── agent.py            # CrewAI document analysis and chat
-├── pdf_reader.py       # PDF extraction and OCR
-├── models.py           # Pydantic analysis schema
-├── ui_components.py    # UI styling, cards, i18n
-├── requirements.txt    # Python dependencies
-├── .env.example        # Environment variable template
-├── .gitignore
-├── README.md
-└── tessdata/           # OCR language files (heb, ara, eng)
+├── app.py
+├── agent.py
+├── rag.py                 # uploaded-document RAG
+├── knowledge_base/        # official source RAG
+├── pages/                 # admin Official Sources + Evals
+├── evals/                 # AI evaluation suite
+├── tests/
+├── pdf_reader.py
+├── models.py
+├── ui_components.py
+└── tessdata/
 ```
+
+## Official knowledge base
+
+The assistant can ground answers in an allowlisted set of Israeli sources:
+
+1. Bituach Leumi (`https://www.btl.gov.il/`)
+2. GOV.IL
+3. Israel Tax Authority
+4. Population and Immigration Authority
+5. Ministry of Labor
+6. Ministry of Health
+7. Ministry of Education
+8. Kol Zchut — secondary explanation only
+
+Default ingestion uses **local fixtures** (`KB_INGEST_MODE=fixtures`) so the app never crawls live sites unless you explicitly set `KB_INGEST_MODE=live`. Live mode still respects the HTTPS allowlist, delay, and retries. It will not bypass login or CAPTCHA.
+
+```powershell
+python -m knowledge_base.cli ingest
+python -m knowledge_base.cli status
+python -m knowledge_base.cli search --query "טופס 1500"
+```
+
+Admin pages (password: `KB_ADMIN_PASSWORD`):
+
+- Official Sources
+- Evals
+
+### How to add an authority
+
+Edit `knowledge_base/authorities.py`, add an allowlisted HTTPS URL, and add a fixture HTML file under `knowledge_base/fixtures/`.
+
+## Evals
+
+Unit tests check code. Evals check whether retrieval, citations, and safety behave as intended.
+
+```powershell
+pytest tests -q
+python -m evals.run --offline
+```
+
+Offline evals use fixtures and mocked answers. They do not call Gemini and do not crawl government websites.
+
+To add a case, append a JSON line to `evals/datasets/formbridge_eval_v1.jsonl`.
+
+LLM-as-a-judge is opt-in (`--use-llm-judge`) and is not part of default CI.
 
 ## Security and Privacy Notes
 
@@ -196,4 +247,4 @@ FormBridge/
 
 ## Disclaimer
 
-FormBridge provides an AI-generated explanation and does not replace legal or official professional advice. Always verify important dates, payments, and requirements with the issuing organization.
+FormBridge provides informational assistance only. It is not legal, tax, medical, or government advice, and it is not affiliated with the State of Israel. Always verify important information on the linked official source. Do not upload unnecessary sensitive documents. The official knowledge base stores public source text only — never user ID numbers, medical data, or bank details.

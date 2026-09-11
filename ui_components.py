@@ -63,11 +63,16 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "rag_title": "مقاطع مسترجعة من المستند (RAG)",
         "rag_empty": "لم يُسترجع أي مقطع بعد. اسأل سؤالًا لعرض المقاطع ذات الصلة.",
         "rag_chunks": "مقاطع في قاعدة المعرفة",
+        "official_sources": "مصادر رسمية",
+        "secondary_source": "مصدر ثانوي",
+        "no_official_source": "تعذر التحقق من إجابة رسمية. راجع الموقع الرسمي للجهة.",
+        "form_identity": "تعرّف على النموذج",
         "download_txt": "تنزيل تقرير (TXT)",
         "download_md": "تنزيل تقرير (Markdown)",
         "footer_disclaimer": (
             "يوفر FormBridge شرحًا مولّدًا بالذكاء الاصطناعي "
-            "ولا يُغني عن استشارة قانونية أو مهنية رسمية."
+            "ولا يُغني عن استشارة قانونية أو ضريبية أو طبية أو حكومية. "
+            "المشروع غير تابع لحكومة إسرائيل. تحقق دائمًا من المصدر الرسمي."
         ),
         "urgency_low": "منخفض",
         "urgency_medium": "متوسط",
@@ -137,11 +142,16 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "rag_title": "קטעים שאוחזרו מהמסמך (RAG)",
         "rag_empty": "עדיין לא אוחזרו קטעים. שאלו שאלה כדי לראות את המקורות.",
         "rag_chunks": "קטעים בבסיס הידע",
+        "official_sources": "מקורות רשמיים",
+        "secondary_source": "מקור משני",
+        "no_official_source": "לא ניתן לאמת תשובה ממקור רשמי. יש לבדוק באתר הרשות.",
+        "form_identity": "זיהוי הטופס",
         "download_txt": "הורדת דוח (TXT)",
         "download_md": "הורדת דוח (Markdown)",
         "footer_disclaimer": (
             "FormBridge מספק הסבר שנוצר על ידי בינה מלאכותית "
-            "ואינו מחליף ייעוץ משפטי או מקצועי רשמי."
+            "ואינו ייעוץ משפטי, מס, רפואי או ממשלתי. "
+            "הפרויקט אינו קשור לממשלת ישראל. יש לאמת מידע באתר הרשמי."
         ),
         "urgency_low": "נמוכה",
         "urgency_medium": "בינונית",
@@ -840,6 +850,26 @@ def inject_global_css() -> None:
                 margin-bottom: 0.5rem;
             }
 
+            .fb-cite {
+                direction: rtl;
+                text-align: right;
+                border: 1px solid var(--fb-border);
+                background: var(--fb-surface-soft);
+                border-radius: 12px;
+                padding: 0.7rem 0.85rem;
+                margin: 0.45rem 0;
+                font-size: 0.88rem;
+            }
+            .fb-cite a { direction: ltr; unicode-bidi: embed; }
+            .fb-cite-badge {
+                display: inline-block;
+                font-size: 0.72rem;
+                font-weight: 700;
+                color: var(--fb-teal);
+                margin-left: 0.35rem;
+            }
+            .fb-cite-meta { color: var(--fb-text-muted); font-size: 0.78rem; }
+
             .fb-chat-empty {
                 direction: rtl;
                 text-align: right;
@@ -1205,10 +1235,44 @@ def normalize_chat_response(text: str) -> str:
     return cleaned
 
 
-def render_chat_bubble(content: str, role: str, selected_language: str) -> None:
+def render_citations(citations: list[dict], selected_language: str) -> None:
+    strings = ui(selected_language)
+    if not citations:
+        st.caption(strings["no_official_source"])
+        return
+    st.markdown(
+        f'<div class="fb-section-title" style="font-size:0.92rem;">{html.escape(strings["official_sources"])}</div>',
+        unsafe_allow_html=True,
+    )
+    for item in citations:
+        badge = (
+            strings["official_sources"]
+            if item.get("source_type") == "official"
+            else strings["secondary_source"]
+        )
+        title = html.escape(item.get("title") or "")
+        authority = html.escape(item.get("authority") or "")
+        url = item.get("source_url") or ""
+        checked = html.escape(item.get("last_checked_at") or "")
+        st.markdown(
+            f'<div class="fb-cite">'
+            f'<span class="fb-cite-badge">{html.escape(badge)}</span> '
+            f'<strong>{authority}</strong> — {title}<br>'
+            f'<a href="{html.escape(url)}" target="_blank" rel="noopener">{html.escape(url)}</a><br>'
+            f'<span class="fb-cite-meta">Last checked: {checked}</span>'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def render_chat_bubble(
+    content: str,
+    role: str,
+    selected_language: str,
+    citations: list[dict] | None = None,
+) -> None:
     """Render a single chat message with RTL typography and markdown support."""
     strings = ui(selected_language)
-    # Streamlit only accepts built-in names, a real emoji, or an image path.
     with st.chat_message(role):
         if role == "assistant":
             st.markdown(
@@ -1216,3 +1280,5 @@ def render_chat_bubble(content: str, role: str, selected_language: str) -> None:
                 unsafe_allow_html=True,
             )
         st.markdown(normalize_chat_response(content))
+        if role == "assistant" and citations is not None:
+            render_citations(citations, selected_language)

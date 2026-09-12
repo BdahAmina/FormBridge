@@ -6,7 +6,6 @@ import html
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from models import (
     DocumentAnalysis,
@@ -32,7 +31,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "mode_picker": "اختر طريقة المساعدة",
         "guided_title": "مساعدة في اختيار الاستمارة أو الخدمة",
         "guided_help": "صف وضعك أو اسأل سؤالًا. قد يطلب الوكيل تفاصيل إضافية، ثم يحدد الاستمارة ويشرح الخطوات مع رابط رسمي.",
-        "guided_placeholder": "مثال: فقدت عملي وأريد معرفة كيف أطلب دمي أبطالة...",
+        "guided_placeholder": "اكتب سؤالك هنا...",
         "guided_send": "إرسال",
         "guided_clear": "بدء محادثة جديدة",
         "guided_service": "الاستمارة / الخدمة",
@@ -45,6 +44,18 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "guided_questions": "أسئلة توضيحية",
         "guided_tools_used": "استخدم الوكيل أداة البحث في المصادر الرسمية",
         "guided_empty": "ابدأ بوصف وضعك. مثال: أحتاج تعبئة טופס 101 عند مشغّل جديد.",
+        "guided_fields": "حقول مهمة",
+        "guided_missing": "معلومات ناقصة",
+        "guided_preview": "ملخص قبل التقديم (بدون إرسال تلقائي)",
+        "guided_no_autosubmit": "FormBridge لا يقدّم الاستمارات تلقائيًا. راجع الملخص ثم قدّم بنفسك عبر الموقع الرسمي.",
+        "guided_suggestions_title": "أسئلة مقترحة",
+        "guided_example_questions": [
+            "فقدت عملي — كيف أطلب دمي أبطالة؟",
+            "ماذا أحتاج لتعبئة טופס 101؟",
+            "كيف أغيّر عنواني في بطاقة الهوية؟",
+        ],
+        "consent_required": "وافق على إشعار الخصوصية قبل المتابعة.",
+        "privacy_notice_title": "الخصوصية",
         "step_upload": "ارفع المستند",
         "step_language": "اختر لغة الشرح",
         "step_analyze": "حلّل واسأل",
@@ -140,7 +151,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "mode_picker": "בחרו אופן סיוע",
         "guided_title": "עזרה בבחירת טופס או שירות",
         "guided_help": "תארו את המצב או שאלו שאלה. הסוכן ישאל שאלות הבהרה במידת הצורך, יזהה טופס/שירות, וייתן שלבים עם קישור רשמי.",
-        "guided_placeholder": "לדוגמה: פוטרתי מהעבודה ורוצה לדעת איך מגישים תביעה לדמי אבטלה...",
+        "guided_placeholder": "כתבו את השאלה כאן...",
         "guided_send": "שליחה",
         "guided_clear": "שיחה חדשה",
         "guided_service": "הטופס / השירות",
@@ -153,6 +164,18 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "guided_questions": "שאלות הבהרה",
         "guided_tools_used": "הסוכן השתמש בכלי חיפוש במקורות רשמיים",
         "guided_empty": "התחילו בתיאור המצב. לדוגמה: אני צריך/ה למלא טופס 101 אצל מעסיק חדש.",
+        "guided_fields": "שדות חשובים",
+        "guided_missing": "מידע חסר",
+        "guided_preview": "תקציר לפני הגשה (ללא שליחה אוטומטית)",
+        "guided_no_autosubmit": "FormBridge אינו מגיש טפסים אוטומטית. בדקו את התקציר והגישו בעצמכם באתר הרשמי.",
+        "guided_suggestions_title": "שאלות מוצעות",
+        "guided_example_questions": [
+            "פוטרתי — איך מגישים תביעה לדמי אבטלה?",
+            "מה צריך כדי למלא טופס 101?",
+            "איך משנים כתובת במרשם האוכלוסין?",
+        ],
+        "consent_required": "יש לאשר את הודעת הפרטיות לפני המשך.",
+        "privacy_notice_title": "פרטיות",
         "step_upload": "העלאת מסמך",
         "step_language": "בחירת שפה",
         "step_analyze": "ניתוח ושאלות",
@@ -248,7 +271,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "mode_picker": "Choose how to get help",
         "guided_title": "Help choosing a form or service",
         "guided_help": "Describe your situation or ask a question. The agent may ask follow-ups, identify the form/service, and give steps with an official link.",
-        "guided_placeholder": "Example: I lost my job and want to know how to apply for unemployment benefits...",
+        "guided_placeholder": "Write your question here...",
         "guided_send": "Send",
         "guided_clear": "Start new chat",
         "guided_service": "Form / service",
@@ -261,6 +284,18 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "guided_questions": "Clarifying questions",
         "guided_tools_used": "The agent used the official-sources search tool",
         "guided_empty": "Start by describing your situation. Example: I need to fill form 101 for a new employer.",
+        "guided_fields": "Important fields",
+        "guided_missing": "Missing information",
+        "guided_preview": "Pre-submission preview (never auto-submit)",
+        "guided_no_autosubmit": "FormBridge never submits forms automatically. Review the preview, then file yourself on the official site.",
+        "guided_suggestions_title": "Suggested questions",
+        "guided_example_questions": [
+            "I lost my job — how do I apply for unemployment?",
+            "What do I need to fill Form 101?",
+            "How do I change my address on my ID?",
+        ],
+        "consent_required": "Please accept the privacy notice before continuing.",
+        "privacy_notice_title": "Privacy",
         "step_upload": "Upload document",
         "step_language": "Choose language",
         "step_analyze": "Analyze and ask",
@@ -377,6 +412,7 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         ),
         "generic": "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.",
         "file_too_large": "حجم الملف كبير جدًا. الحد الأقصى 10 ميغابايت.",
+        "source_unreachable": "تعذر الوصول إلى مصدر حكومي أو واجهة النموذج. حاول لاحقًا أو راجع الموقع الرسمي مباشرة.",
     },
     "he": {
         "no_file": "יש להעלות קובץ PDF לפני הניתוח.",
@@ -405,6 +441,7 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         ),
         "generic": "אירעה שגיאה בעיבוד. נסו שוב.",
         "file_too_large": "גודל הקובץ גדול מדי. המקסימום הוא 10MB.",
+        "source_unreachable": "לא ניתן להגיע למקור ממשלתי או לממשק המודל. נסו שוב מאוחר יותר או בדקו באתר הרשמי.",
     },
     "en": {
         "no_file": "Please upload a PDF before analysis.",
@@ -433,6 +470,7 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         ),
         "generic": "Something went wrong while processing. Please try again.",
         "file_too_large": "The file is too large. Maximum size is 10 MB.",
+        "source_unreachable": "A government source or model API could not be reached. Try again later or check the official website.",
     },
 }
 
@@ -502,6 +540,14 @@ def inject_global_css(selected_language: str | None = None) -> None:
     st.markdown(
         f"""
         <style>
+            /* Hide Streamlit auto page list — FormBridge uses custom page_link nav. */
+            [data-testid="stSidebarNav"],
+            section[data-testid="stSidebarNav"],
+            div[data-testid="stSidebarNavItems"],
+            ul[data-testid="stSidebarNavItems"] {{
+                display: none !important;
+            }}
+
             @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700&display=swap');
 
             :root {{
@@ -1465,123 +1511,131 @@ def inject_global_css(selected_language: str | None = None) -> None:
     )
 
 
+def is_admin_unlocked() -> bool:
+    return bool(st.session_state.get("fb_admin_unlocked"))
+
+
+def unlock_admin(password: str) -> bool:
+    """Validate KB_ADMIN_PASSWORD and mark this browser session as admin."""
+    import hmac
+    import os
+
+    expected = (os.getenv("KB_ADMIN_PASSWORD") or "").strip()
+    if not expected or not password:
+        return False
+    if hmac.compare_digest(password, expected):
+        st.session_state.fb_admin_unlocked = True
+        return True
+    return False
+
+
+def lock_admin() -> None:
+    st.session_state.fb_admin_unlocked = False
+
+
+def render_sidebar_nav() -> None:
+    """Home always visible; admin links only after password unlock for this session."""
+    import os
+
+    st.markdown("### FormBridge")
+    st.page_link("app.py", label="Home", icon="🏠")
+
+    if is_admin_unlocked():
+        st.divider()
+        st.caption("Admin")
+        st.page_link("pages/1_Official_Sources.py", label="Official Sources", icon="📚")
+        st.page_link("pages/2_Evals.py", label="Evals", icon="🧪")
+        st.page_link("pages/3_Monitor.py", label="Monitor", icon="📊")
+        if st.button("Lock admin", key="fb_admin_lock_btn", use_container_width=True):
+            lock_admin()
+            st.rerun()
+        return
+
+    with st.expander("Admin"):
+        expected = (os.getenv("KB_ADMIN_PASSWORD") or "").strip()
+        if not expected:
+            st.caption("Admin access is not configured.")
+            return
+        password = st.text_input(
+            "Password",
+            type="password",
+            key="fb_sidebar_admin_password",
+            label_visibility="collapsed",
+            placeholder="Password",
+        )
+        if st.button("Unlock", key="fb_admin_unlock_btn", use_container_width=True):
+            if unlock_admin(password):
+                st.rerun()
+            else:
+                st.error("Wrong password.")
+
+
 def render_language_switcher(selected_language: str) -> str:
-    """Pin a 🌐 language popover beside Streamlit's Deploy button."""
+    """Compact 🌐 language icon at the top of the page."""
     code_to_lang = {
         "ar": LANGUAGE_AR,
         "he": LANGUAGE_HE,
         "en": LANGUAGE_EN,
     }
+    labels = {
+        "ar": "العربية",
+        "he": "עברית",
+        "en": "English",
+    }
+
+    if "language_selector" not in st.session_state:
+        st.session_state.language_selector = selected_language
+    if st.session_state.language_selector not in code_to_lang.values():
+        st.session_state.language_selector = LANGUAGE_AR
+
     qp = st.query_params.get("lang")
     if isinstance(qp, (list, tuple)):
         qp = qp[0] if qp else None
-    if qp in code_to_lang:
+    if qp in code_to_lang and qp != st.session_state.get("fb_language_query"):
         st.session_state.language_selector = code_to_lang[qp]
-        selected_language = code_to_lang[qp]
-    elif "language_selector" not in st.session_state:
-        st.session_state.language_selector = selected_language
-    else:
-        selected_language = st.session_state.language_selector
+        st.session_state.fb_language_query = qp
 
-    options = [LANGUAGE_AR, LANGUAGE_HE, LANGUAGE_EN]
-    if selected_language not in options:
-        selected_language = LANGUAGE_AR
-        st.session_state.language_selector = selected_language
+    current_code = lang_code(st.session_state.language_selector)
 
+    # Top-right icon in normal layout (not over Streamlit's Deploy button).
     st.markdown(
         """
         <style>
-        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"]) {
-          position: fixed !important;
-          top: 0.45rem !important;
-          right: 7.35rem !important;
-          left: auto !important;
-          width: auto !important;
-          height: 2.25rem !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          z-index: 1000000 !important;
-          overflow: visible !important;
-        }
-        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"]) [data-testid="stPopover"] {
-          margin: 0 !important;
-        }
-        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"])
-          button[data-testid="stPopoverButton"] {
-          min-width: 2.25rem !important;
-          width: 2.25rem !important;
-          height: 2.25rem !important;
-          padding: 0 !important;
-          border-radius: 999px !important;
-          border: 1px solid rgba(49, 51, 63, 0.2) !important;
-          background: #ffffff !important;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-          justify-content: center !important;
-        }
-        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"])
-          button[data-testid="stPopoverButton"]
-          span[data-testid="stIconMaterial"] {
-          display: none !important;
+        div[data-testid="stPopover"] button[data-testid="stPopoverButton"] {
+            min-width: 2.4rem !important;
+            height: 2.4rem !important;
+            padding: 0 !important;
+            border-radius: 999px !important;
+            border: 1px solid rgba(15, 118, 110, 0.25) !important;
+            background: #ffffff !important;
+            box-shadow: 0 1px 3px rgba(7, 21, 37, 0.08) !important;
+            justify-content: center !important;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
+    _, icon_col = st.columns([10, 1])
+    with icon_col:
+        with st.popover("🌐", help="Language"):
+            for code in ("ar", "he", "en"):
+                is_current = code == current_code
+                if st.button(
+                    labels[code],
+                    key=f"fb_lang_pop_{code}",
+                    type="primary" if is_current else "secondary",
+                    use_container_width=True,
+                    disabled=is_current,
+                ):
+                    st.session_state.language_selector = code_to_lang[code]
+                    st.session_state.fb_language_query = code
+                    st.query_params["lang"] = code
+                    st.rerun()
 
-    with st.popover("🌐", help="Language / اللغة / שפה"):
-        choice = st.radio(
-            "Language",
-            options=options,
-            index=options.index(selected_language),
-            label_visibility="collapsed",
-            key="fb_toolbar_language_radio",
-        )
-        if choice != selected_language:
-            st.session_state.language_selector = choice
-            st.query_params["lang"] = lang_code(choice)
-            st.rerun()
+    if st.query_params.get("lang") != current_code:
+        st.session_state.fb_language_query = current_code
+        st.query_params["lang"] = current_code
 
-    components.html(
-        """
-        <script>
-        (function () {
-          const doc = window.parent.document;
-          function place() {
-            const wrap = doc.querySelector(
-              '[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"])'
-            );
-            if (!wrap) return;
-            const deploy =
-              doc.querySelector('[data-testid="stAppDeployButton"]') ||
-              Array.from(doc.querySelectorAll("button")).find(function (b) {
-                return ((b.innerText || "") + "").trim() === "Deploy";
-              });
-            if (!deploy) return;
-            const r = deploy.getBoundingClientRect();
-            const size = 36;
-            wrap.style.setProperty("position", "fixed", "important");
-            wrap.style.setProperty("top", Math.max(4, r.top + (r.height - size) / 2) + "px", "important");
-            wrap.style.setProperty("left", Math.max(8, r.left - size - 8) + "px", "important");
-            wrap.style.setProperty("right", "auto", "important");
-            wrap.style.setProperty("z-index", "1000000", "important");
-            wrap.style.setProperty("width", "auto", "important");
-            wrap.style.setProperty("height", size + "px", "important");
-            wrap.style.setProperty("margin", "0", "important");
-          }
-          let n = 0;
-          function tick() {
-            place();
-            n += 1;
-            if (n < 40) setTimeout(tick, 200);
-          }
-          tick();
-          window.parent.addEventListener("resize", place);
-        })();
-        </script>
-        """,
-        height=1,
-        width=1,
-    )
     return st.session_state.language_selector
 
 
@@ -1704,15 +1758,31 @@ def render_guided_result(
         st.markdown(f"**{strings['guided_eligibility']}**")
         st.write(guidance.eligibility_summary)
 
+    if guidance.important_fields:
+        st.markdown(f"**{strings.get('guided_fields', 'Important fields')}**")
+        for item in guidance.important_fields:
+            st.write(f"- {item}")
+
     if guidance.required_documents:
         st.markdown(f"**{strings['guided_documents']}**")
         for item in guidance.required_documents:
+            st.write(f"- {item}")
+
+    if guidance.missing_fields:
+        st.markdown(f"**{strings.get('guided_missing', 'Missing information')}**")
+        for item in guidance.missing_fields:
             st.write(f"- {item}")
 
     if guidance.steps:
         st.markdown(f"**{strings['guided_steps']}**")
         for index, step in enumerate(guidance.steps, start=1):
             st.write(f"{index}. {step}")
+
+    if guidance.preview_summary:
+        st.markdown(f"**{strings.get('guided_preview', 'Preview')}**")
+        st.info(guidance.preview_summary)
+
+    st.warning(strings.get("guided_no_autosubmit", "FormBridge never submits forms automatically."))
 
     if guidance.official_links:
         st.markdown(f"**{strings['guided_links']}**")
@@ -1985,11 +2055,8 @@ def build_markdown_report(analysis: DocumentAnalysis, selected_language: str) ->
 
 
 def render_footer(selected_language: str) -> None:
-    strings = ui(selected_language)
-    st.markdown(
-        f'<div class="fb-footer">{html.escape(strings["footer_disclaimer"])}</div>',
-        unsafe_allow_html=True,
-    )
+    """Footer intentionally left empty (disclaimer removed from UI)."""
+    return
 
 
 def normalize_chat_response(text: str) -> str:

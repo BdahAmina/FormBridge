@@ -1,36 +1,82 @@
 # FormBridge
 
-FormBridge is an AI-powered assistant that helps Arabic-speaking users understand official and administrative documents written mainly in Hebrew.
+FormBridge is an AI assistant that helps people navigate **Israeli official forms and documents** — especially when those documents are in formal Hebrew and the user prefers Arabic, Hebrew, or English.
 
-Upload a PDF, choose your preferred explanation language (Arabic or simple Hebrew), and receive a structured analysis with deadlines, required actions, missing information, and a practical action plan. You can also ask follow-up questions in a document-aware chat.
+It supports two workflows:
+
+1. **Guided form assistance** — describe a situation, get clarifying questions, the right form/service, eligibility notes, required documents, important fields, steps, a pre-submission preview, and official links.
+2. **Document upload** — upload a Hebrew PDF (or scanned PDF with OCR), get a structured analysis, then ask follow-up questions in a grounded chat.
+
+FormBridge is an **informational assistant only**. It does **not** submit forms automatically and is **not** a substitute for official legal or professional advice.
 
 ## Problem Statement
 
-Official documents in Israel are often written in formal Hebrew. For many Arabic-speaking residents, understanding these documents quickly and accurately is difficult. Misreading a deadline, payment, or required document can lead to delays, fines, or missed opportunities.
+Official documents and forms in Israel are often written in formal Hebrew. For many residents — especially Arabic speakers — deadlines, required documents, and filing steps can be hard to understand. Missing a detail can mean delays, fines, or a rejected application.
 
-FormBridge bridges this gap by combining PDF text extraction, OCR for scanned documents, and an AI agent that explains the document in clear language and organizes the information into actionable steps.
+FormBridge bridges that gap with PDF/OCR extraction, an official-source RAG knowledge base, multilingual explanations (Arabic / Hebrew / English with RTL), and a CrewAI agent that recommends forms and grounds answers in allowlisted evidence.
 
 ## Target Users
 
-- Arabic-speaking residents navigating Israeli government or administrative paperwork
-- Social workers, community organizers, and volunteers helping others with official documents
-- Students and professionals demonstrating practical AI-assisted document understanding
+- Residents navigating Israeli government or administrative paperwork
+- Arabic-speaking users who need clear guidance on Hebrew forms
+- Social workers, community organizers, and volunteers helping others
+- Students and builders demonstrating practical AI + RAG + agent tooling
 
 ## Main Features
 
-- PDF upload with drag-and-drop support
-- Guided form/service intake: describe a situation → clarifying questions → form ID → eligibility, documents, steps, official links
-- Automatic text extraction with OCR fallback for scanned PDFs
-- Structured document analysis displayed in professional cards
-- Explanation in **Arabic** or **simple Hebrew**
-- Urgency indicators (low / medium / high)
-- Numbered action plan and suggested formal Hebrew reply when relevant
-- Document-aware follow-up chat with CrewAI tools (`search_official_sources`, `search_uploaded_document`)
-- Official Israeli knowledge base (RAG) with citations
-- Offline AI evaluations
-- Download analysis as TXT or Markdown
-- Privacy-focused processing (document analyzed per session, not stored on server)
-- RTL support for Arabic and Hebrew content
+### Guided form assistance
+- Situation → clarifying questions → form/service identification
+- Eligibility summary, important fields, required documents, missing information
+- Step-by-step instructions and a **pre-submission preview**
+- Official links with citations
+- **Never auto-submits** — the user files on the official site
+
+### Document analysis
+- PDF upload with drag-and-drop
+- Text extraction + OCR fallback (Hebrew, Arabic, English)
+- Structured analysis: summary, urgency, deadlines, actions, missing details
+- Suggested formal Hebrew reply when relevant
+- Document-aware follow-up chat
+
+### RAG and grounding
+- Allowlisted official Israeli sources
+- Chunking, embeddings, and a local vector store
+- Retrieval before answering; answers grounded in evidence
+- Citation cards (source name, link, last checked / last updated)
+- Refresh via `SOURCE_UPDATE_INTERVAL_HOURS`
+
+### Agent tools
+| Tool | Purpose |
+|------|---------|
+| `search_official_sources` | Search allowlisted official passages |
+| `find_relevant_form` | Identify the likely form/service |
+| `retrieve_form_instructions` | Pull filing instructions from the KB |
+| `validate_user_input` | Validate Israeli ID, email, phone, date, required |
+| `generate_document_checklist` | Build a required-document checklist |
+| `search_uploaded_document` | RAG over the user’s uploaded PDF |
+
+Tools return structured `STATUS=success` / `STATUS=failure` responses with validated inputs.
+
+### Product & safety
+- Arabic / Hebrew / English UI with RTL support
+- Landing hero, chat, new-chat, history, suggested questions, loading states, clear errors
+- Privacy notice + consent before use; sensitive values masked in logs
+- Anonymized telemetry and a password-protected **Monitor** page
+- Offline evals + unit tests
+
+## Requirements checklist
+
+| # | Area | Covered |
+|---|------|---------|
+| 3 | RAG system | Official collection, extract/chunk/embed/store/retrieve, grounded answers, citations, refresh |
+| 4 | Form assistance | Recommend form, fields, documents, missing info, validators, preview; no auto-submit |
+| 5 | Multilingual | Arabic, Hebrew, English + RTL |
+| 6 | Professional UI | Landing, chat, history, suggestions, spinners, errors, source cards, responsive branding |
+| 7 | Accounts & privacy | Consent gate, sensitive-value masking, secrets not in Git |
+| 8 | Agent tools | Named tools, structured params, validation, success/failure, timeouts on live fetch |
+| 9 | Evals & testing | Dataset + metrics + `pytest` + readable reports |
+| 10 | Admin / monitoring | Official Sources, Evals, Monitor |
+| 11 | Error handling & safety | API/source/PDF/incomplete/conflict handling + informational disclaimer |
 
 ## Technology Stack
 
@@ -38,56 +84,60 @@ FormBridge bridges this gap by combining PDF text extraction, OCR for scanned do
 |-----------|------------|
 | UI | Streamlit |
 | AI orchestration | CrewAI |
-| Language model | Gemini by default; Groq backup via `GROQ_API_KEY` / `LLM_PROVIDER` |
-| PDF text extraction | pypdf |
-| OCR rendering | PyMuPDF (`pymupdf`) |
-| OCR engine | Tesseract (Hebrew, Arabic, English) |
-| Official RAG | Local hashed embeddings + persistent vector store |
+| Language models | Gemini (default) + Groq backup via LiteLLM |
+| PDF text | pypdf |
+| OCR | PyMuPDF + Tesseract (`heb` / `ara` / `eng`) |
+| Official RAG | Local hashed embeddings + file vector store |
+| Auth | — (session-only; accounts not enabled) |
 | Structured output | Pydantic |
-| Configuration | python-dotenv |
+| Config | python-dotenv |
+| Tests | pytest + offline eval runner |
 
 ## Architecture Overview
 
 ```mermaid
 flowchart TD
-    upload[Uploaded PDF] --> extract[pdf_reader]
-    extract --> analyze[CrewAI + Gemini]
+    user[User] --> ui[Streamlit app]
+    ui --> guided[Guided intake]
+    ui --> upload[PDF upload]
+    upload --> extract[pdf_reader]
+    extract --> analyze[CrewAI analyze]
     analyze --> docRag[Document RAG]
+    guided --> tools[Agent tools]
+    analyze --> tools
     fixtures[Official fixtures / allowlist] --> ingest[knowledge_base.ingest]
     ingest --> store[Vector store]
-    question[User question] --> retrieve[Official + document retrieval]
-    store --> retrieve
-    docRag --> retrieve
-    retrieve --> agent[Grounded Gemini answer]
-    agent --> cites[Citation cards]
+    tools --> store
+    tools --> docRag
+    tools --> validate[validation.py]
+    store --> cites[Citation cards]
+    ui --> telemetry[telemetry.py]
 ```
 
-**Flow:**
+**Typical guided flow**
 
-1. User uploads a PDF and selects a language.
-2. `pdf_reader.py` extracts embedded text; if insufficient, it runs OCR.
-3. `agent.py` sends the text to Gemini via CrewAI with strict security and accuracy rules.
-4. The response is parsed into a `DocumentAnalysis` Pydantic model.
-5. Follow-up questions retrieve uploaded-document passages **and** official knowledge-base chunks.
-6. Answers include citations. Official sources outrank Kol Zchut.
+1. User accepts the privacy consent and describes a situation.
+2. The agent may ask clarifying questions.
+3. Tools search official sources / identify the form / build a checklist.
+4. FormBridge returns grounded guidance, preview, and citations — never auto-submit.
+
+**Typical upload flow**
+
+1. User uploads a PDF and chooses a language.
+2. `pdf_reader.py` extracts text (OCR if needed).
+3. `agent.py` analyzes the document into a `DocumentAnalysis` model.
+4. Follow-up chat uses document RAG + official KB tools.
 
 ## Installation
 
-### 1. Clone the repository
+### 1. Clone
 
 ```bash
 git clone <repository-url>
 cd FormBridge
 ```
 
-### 2. Create a virtual environment
-
-**Windows (PowerShell):**
-
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
+### 2. Virtual environment
 
 **macOS / Linux:**
 
@@ -96,60 +146,60 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 3. Install Python dependencies
+**Windows (PowerShell):**
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+### 3. Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Install Tesseract OCR
+### 4. Tesseract OCR (for scanned PDFs)
 
-FormBridge uses Tesseract for scanned PDFs. Hebrew, Arabic, and English language files are included in the local `tessdata/` folder.
+Hebrew, Arabic, and English `tessdata` files ship in `tessdata/`.
 
-**Windows:**
+**macOS:** `brew install tesseract`  
+**Linux:** `sudo apt install tesseract-ocr`  
+**Windows:** install from [UB Mannheim builds](https://github.com/UB-Mannheim/tesseract/wiki)
 
-1. Download the installer from [UB Mannheim Tesseract builds](https://github.com/UB-Mannheim/tesseract/wiki)
-2. Install to the default location: `C:\Program Files\Tesseract-OCR\`
-3. Optionally set a custom path:
+Optional:
 
 ```env
-TESSERACT_CMD=C:\Path\To\tesseract.exe
+TESSERACT_CMD=/path/to/tesseract
 ```
 
-**macOS:**
+### 5. Environment
 
 ```bash
-brew install tesseract
+cp .env.example .env
 ```
 
-**Linux (Debian/Ubuntu):**
-
-```bash
-sudo apt update
-sudo apt install tesseract-ocr
-```
-
-FormBridge detects Tesseract in this order:
-
-1. `TESSERACT_CMD` environment variable
-2. System `PATH` (`shutil.which`)
-3. Standard Windows installation path
-
-### 5. Configure Gemini API key
-
-Copy the example environment file and add your key:
-
-```bash
-copy .env.example .env
-```
-
-Edit `.env`:
+Minimum useful `.env`:
 
 ```env
 GEMINI_API_KEY=your_actual_api_key_here
+GEMINI_MODEL=gemini/gemini-3.6-flash
+LLM_PROVIDER=auto
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=groq/openai/gpt-oss-20b
+KB_ADMIN_PASSWORD=change-me
+KB_INGEST_MODE=fixtures
+SOURCE_UPDATE_INTERVAL_HOURS=168
 ```
 
-Obtain a key from [Google AI Studio](https://aistudio.google.com/).
+| Variable | Meaning |
+|----------|---------|
+| `LLM_PROVIDER` | `auto` (Gemini then Groq), `gemini`, or `groq` |
+| `KB_INGEST_MODE` | `fixtures` (default, offline-safe) or `live` (allowlisted HTTPS only) |
+| `KB_ADMIN_PASSWORD` | Unlocks Admin sidebar links + Official Sources / Evals / Monitor |
+| `SOURCE_UPDATE_INTERVAL_HOURS` | Hours before KB is considered stale and refreshed |
+
+Get a Gemini key from [Google AI Studio](https://aistudio.google.com/). Groq is optional but useful when Gemini quota is exhausted.
 
 ## How to Run
 
@@ -159,95 +209,106 @@ streamlit run app.py
 
 Open the URL shown in the terminal (usually `http://localhost:8501`).
 
+1. Accept the privacy consent.
+2. Choose **Arabic / Hebrew / English**.
+3. Use **guided mode** (default) or switch to **document upload**.
+4. Optional: open **Admin** in the sidebar, unlock with `KB_ADMIN_PASSWORD`, then use Official Sources / Evals / Monitor.
+
+Admin pages (hidden until unlocked; password-protected):
+
+- **Official Sources** — KB status, ingest, search
+- **Evals** — run/view evaluation results
+- **Monitor** — anonymized counts, latency, forms, feedback, KB + eval status
+
 ## Project Structure
 
 ```text
 FormBridge/
-├── app.py
-├── agent.py
-├── rag.py                 # uploaded-document RAG
-├── knowledge_base/        # official source RAG
-├── pages/                 # admin Official Sources + Evals
-├── evals/                 # AI evaluation suite
+├── app.py                 # Main Streamlit UI
+├── agent.py               # CrewAI agents + tools
+├── models.py              # DocumentAnalysis / GuidedGuidance
+├── rag.py                 # Uploaded-document RAG
+├── pdf_reader.py          # PDF + OCR extraction
+├── validation.py          # Israeli ID / email / phone / date validators
+├── privacy.py             # Consent text + sensitive-value masking
+├── telemetry.py           # Anonymized events + feedback
+├── ui_components.py       # Branding, i18n, RTL, cards
+├── knowledge_base/        # Official-source RAG (ingest/retrieve/CLI)
+├── pages/
+│   ├── 1_Official_Sources.py
+│   ├── 2_Evals.py
+│   └── 3_Monitor.py
+├── evals/                 # Dataset, scorers, offline runner, reports
 ├── tests/
-├── pdf_reader.py
-├── models.py
-├── ui_components.py
-└── tessdata/
+├── tessdata/
+├── .env.example
+└── requirements.txt
 ```
 
-## Official knowledge base
+Local runtime data (`data/`, `.env`) is gitignored and must not be committed.
 
-The assistant can ground answers in an allowlisted set of Israeli sources:
+## Official Knowledge Base
 
-1. Bituach Leumi / National Insurance Institute (`https://www.btl.gov.il/`)
+Allowlisted sources:
+
+1. Bituach Leumi (`https://www.btl.gov.il/`)
 2. GOV.IL
 3. Israel Tax Authority
-4. Population and Immigration Authority
+4. Population and Immigration Authority (PIBA)
 5. Ministry of Labor
 6. Ministry of Health
 7. Ministry of Education
-8. Local authorities (municipal / local government portal)
-9. Kol Zchut — secondary explanation only
+8. Local authorities
+9. Kol Zchut — **secondary explanation only**
 
-Each grounded answer shows the **source name**, a **clickable link**, and a **last-checked** (and last-updated when available) date. If no reliable official passage is found, FormBridge shows a clear warning and does not invent laws, requirements, forms, or links.
+Grounded answers show source name, HTTPS link, and last-checked / last-updated dates. If nothing reliable is found, FormBridge warns and does not invent laws, forms, fees, or links.
 
-Default ingestion uses **local fixtures** (`KB_INGEST_MODE=fixtures`) so the app never crawls live sites unless you explicitly set `KB_INGEST_MODE=live`. Live mode still respects the HTTPS allowlist, delay, and retries. It will not bypass login or CAPTCHA.
+Default ingestion uses local fixtures (`KB_INGEST_MODE=fixtures`). Live mode respects the HTTPS allowlist, delay, retries, and timeouts — it will not bypass login or CAPTCHA.
 
-```powershell
+```bash
 python -m knowledge_base.cli ingest
 python -m knowledge_base.cli status
 python -m knowledge_base.cli search --query "טופס 1500"
 ```
 
-Admin pages (password: `KB_ADMIN_PASSWORD`):
+### Adding an authority
 
-- Official Sources
-- Evals
+1. Edit `knowledge_base/authorities.py` (allowlisted HTTPS URL).
+2. Add a fixture HTML file under `knowledge_base/fixtures/`.
+3. Re-ingest.
 
-### How to add an authority
+## Evals and Testing
 
-Edit `knowledge_base/authorities.py`, add an allowlisted HTTPS URL, and add a fixture HTML file under `knowledge_base/fixtures/`.
-
-## Evals
-
-Unit tests check code. Evals check whether retrieval, citations, and safety behave as intended.
-
-```powershell
+```bash
 pytest tests -q
 python -m evals.run --offline
 ```
 
-Offline evals use fixtures and mocked answers. They do not call Gemini and do not crawl government websites.
+Offline evals use fixtures and mocked answers — no live model calls and no government crawling.
 
-To add a case, append a JSON line to `evals/datasets/formbridge_eval_v1.jsonl`.
+The dataset covers form recommendation, documents, eligibility, citation accuracy, Hebrew/Arabic/English, missing information, irrelevant questions, conflicting sources, prompt injection, and questions with no reliable answer.
 
-LLM-as-a-judge is opt-in (`--use-llm-judge`) and is not part of default CI.
+Measured metrics include retrieval accuracy, groundedness, citation accuracy, task success, hallucination/safety, language quality, and response time. Reports are written to `evals/reports/`.
 
-## Security and Privacy Notes
+Add cases by appending JSON lines to `evals/datasets/formbridge_eval_v1.jsonl`.
 
-- Uploaded documents are treated as **untrusted content**.
-- AI prompts explicitly forbid following instructions inside documents.
-- The API key is loaded from `.env` and never hardcoded.
-- Do not commit `.env` or share your API key.
-- FormBridge provides AI-generated explanations, not legal advice.
+## Security and Privacy
+
+- Documents and retrieved text are treated as **untrusted** (prompt-injection resistant prompts).
+- Secrets live in `.env` only — never commit API keys.
+- Consent is required before guided/upload use.
+- Telemetry stores anonymized event metadata only — **not** private question text.
+- Logs mask IDs, phones, emails, and secret-looking strings.
+- Avoid uploading or storing ID numbers, health data, or financial details unless necessary and protected.
+- FormBridge does **not** submit forms on the user’s behalf.
 
 ## Known Limitations
 
-- OCR quality depends on scan resolution and document layout.
-- Very long documents are truncated to a safe processing limit.
-- Analysis accuracy depends on model availability and document clarity.
+- OCR quality depends on scan resolution and layout.
+- Very long documents are truncated for processing.
+- Accuracy depends on model availability and source coverage in the KB.
 - Password-protected PDFs are not supported.
-- Requires an active internet connection for Gemini API calls.
-
-## Future Improvements
-
-- Support for additional document formats (DOCX, images)
-- User-selectable OCR language priority
-- Persistent session export with chat history
-- Multi-page document section navigation
-- Offline mode with local models
-- Accessibility audit and WCAG improvements
+- Live model calls require network access (Gemini and/or Groq).
 
 ## Disclaimer
 

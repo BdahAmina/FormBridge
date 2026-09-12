@@ -28,11 +28,19 @@ def _extract_last_updated(text: str) -> str | None:
 
 
 def _log(config: KBConfig, event: dict) -> None:
+    from privacy import mask_sensitive
+
     path = Path(config.log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    event["timestamp"] = utc_now()
+    safe_event = {}
+    for key, value in event.items():
+        if isinstance(value, str):
+            safe_event[key] = mask_sensitive(value)
+        else:
+            safe_event[key] = value
+    safe_event["timestamp"] = utc_now()
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+        handle.write(json.dumps(safe_event, ensure_ascii=False) + "\n")
 
 
 def _load_status(config: KBConfig) -> dict[str, dict]:

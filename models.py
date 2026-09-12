@@ -33,8 +33,19 @@ class GuidedGuidance(BaseModel):
     steps: list[str] = Field(default_factory=list)
     official_links: list[OfficialLink] = Field(default_factory=list)
     confidence_note: str = ""
+    important_fields: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    preview_summary: str = ""
+    ready_to_file: bool = False
 
-    @field_validator("clarifying_questions", "required_documents", "steps", mode="before")
+    @field_validator(
+        "clarifying_questions",
+        "required_documents",
+        "steps",
+        "important_fields",
+        "missing_fields",
+        mode="before",
+    )
     @classmethod
     def normalize_string_lists(cls, value: object) -> list[str]:
         if value is None:

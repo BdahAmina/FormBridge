@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from knowledge_base.authorities import AUTHORITIES
 from knowledge_base.config import KBConfig
 from knowledge_base.identify import FormIdentity, identify_form
 from knowledge_base.ingest import ingest_all, ingest_authority, rebuild_authority
-from knowledge_base.models import utc_now
 from knowledge_base.retrieve import OfficialHit, retrieve_official
 from knowledge_base.store import open_store
 
@@ -25,8 +26,6 @@ class KnowledgeBaseService:
         return identify_form(text, analysis_org)
 
     def list_status(self) -> list[dict]:
-        import json
-
         path = Path(self.config.status_path)
         saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         stats = self.store.stats()
@@ -59,13 +58,40 @@ class KnowledgeBaseService:
     def rebuild(self, authority_key: str):
         return rebuild_authority(authority_key, self.config)
 
+    def _sources_stale(self) -> bool:
+        """True when any enabled authority is older than SOURCE_UPDATE_INTERVAL_HOURS."""
+        path = Path(self.config.status_path)
+        if not path.exists():
+            return True
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return True
+        interval_hours = max(1, int(self.config.update_interval_hours or 168))
+        now = datetime.now(timezone.utc)
+        for key, authority in AUTHORITIES.items():
+            if not authority.enabled:
+                continue
+            last_success = (saved.get(key) or {}).get("last_success")
+            if not last_success:
+                return True
+            try:
+                stamp = datetime.fromisoformat(str(last_success).replace("Z", "+00:00"))
+            except ValueError:
+                return True
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            age_hours = (now - stamp).total_seconds() / 3600
+            if age_hours >= interval_hours:
+                return True
+        return False
+
     def ensure_seeded(self) -> None:
-        if self.store.stats()["chunks"] == 0:
+        """Seed an empty index, or refresh when sources exceed the update interval."""
+        if self.store.stats()["chunks"] == 0 or self._sources_stale():
             ingest_all(self.config)
 
     def ingestion_history(self, limit: int = 50) -> list[dict]:
-        import json
-
         path = Path(self.config.log_path)
         if not path.exists():
             return []

@@ -8,30 +8,31 @@ import streamlit as st  # pyright: ignore[reportMissingImports]
 from dotenv import load_dotenv
 
 from knowledge_base.service import KnowledgeBaseService
-from ui_components import inject_global_css
+from ui_components import inject_global_css, is_admin_unlocked, render_sidebar_nav, unlock_admin
 
 
 load_dotenv()
 
 
 def _authorized() -> bool:
+    if is_admin_unlocked():
+        return True
     expected = os.getenv("KB_ADMIN_PASSWORD", "")
     if not expected:
         st.warning("Set KB_ADMIN_PASSWORD in .env to unlock source management.")
         return False
-    st.info("Enter the admin password from your `.env` file (`KB_ADMIN_PASSWORD`).")
     password = st.text_input("Admin password", type="password", key="os_admin_password")
-    if not password:
-        st.caption("Waiting for password…")
-        return False
-    if password != expected:
+    if st.button("Unlock", key="os_admin_unlock"):
+        if unlock_admin(password):
+            st.rerun()
         st.error("Wrong password.")
-        return False
-    return True
+    return False
 
 
-st.set_page_config(page_title="Official Sources", layout="wide")
+st.set_page_config(page_title="Official Sources", layout="wide", initial_sidebar_state="expanded")
 inject_global_css()
+with st.sidebar:
+    render_sidebar_nav()
 st.title("Official Sources")
 st.caption("FormBridge is not affiliated with the Israeli government. Sources are informational only.")
 

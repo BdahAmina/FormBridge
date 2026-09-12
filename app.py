@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import time
 import traceback
 
 import streamlit as st
@@ -11,6 +12,7 @@ import streamlit as st
 from agent import analyze_document, ask_document_question, infer_user_style, run_guided_intake
 from knowledge_base.identify import identify_form
 from models import DocumentAnalysis
+from privacy import CONSENT_LABEL
 from rag import build_knowledge_base, passages_to_dicts
 from pdf_reader import (
     ExtractionResult,
@@ -22,6 +24,7 @@ from pdf_reader import (
     PDFProcessingError,
     extract_text_from_pdf,
 )
+from telemetry import log_event, log_feedback
 from ui_components import (
     LANGUAGE_AR,
     LANGUAGE_EN,
@@ -37,6 +40,7 @@ from ui_components import (
     render_guided_result,
     render_header,
     render_language_switcher,
+    render_sidebar_nav,
     ui,
 )
 
@@ -63,6 +67,7 @@ def _init_session_state() -> None:
         "guided_pending": None,
         "guided_tools_used": [],
         "last_guided_citations": [],
+        "privacy_consent": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -128,6 +133,11 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
         )
     ):
         return err["api_denied"]
+    if any(
+        token in text
+        for token in ("timed out", "timeout", "connection", "unreachable", "urlopen")
+    ):
+        return err.get("source_unreachable", err["generic"])
     mapping = {
         PDFEmptyError: err["empty_pdf"],
         PDFPasswordError: err["password_pdf"],
@@ -144,6 +154,21 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
     return err["generic"]
 
 
+def _consent_gate(selected_language: str) -> bool:
+    code = lang_code(selected_language)
+    strings = ui(selected_language)
+    if "privacy_consent_box" not in st.session_state:
+        st.session_state.privacy_consent_box = bool(st.session_state.get("privacy_consent"))
+    consented = st.checkbox(
+        CONSENT_LABEL.get(code, CONSENT_LABEL["en"]),
+        key="privacy_consent_box",
+    )
+    st.session_state.privacy_consent = consented
+    if not consented:
+        st.warning(strings.get("consent_required", "Please accept the privacy notice."))
+    return consented
+
+
 def _run_analysis(uploaded_file, selected_language: str) -> None:
     strings = ui(selected_language)
     err = errors(selected_language)
@@ -156,6 +181,7 @@ def _run_analysis(uploaded_file, selected_language: str) -> None:
         st.session_state.last_error = err["file_too_large"]
         return
 
+    started = time.perf_counter()
     try:
         with st.spinner(strings["processing"]):
             extraction: ExtractionResult = extract_text_from_pdf(uploaded_file)
@@ -175,10 +201,8 @@ def _run_analysis(uploaded_file, selected_language: str) -> None:
             st.session_state.analysis_language = selected_language
             st.session_state.knowledge_base = build_knowledge_base(extraction.text)
             st.session_state.last_rag_passages = []
-            st.session_state.form_identity = identify_form(
-                extraction.text,
-                analysis.issuing_organization,
-            ).to_dict()
+            identity = identify_form(extraction.text, analysis.issuing_organization)
+            st.session_state.form_identity = identity.to_dict()
             st.session_state.extraction_meta = {
                 "used_ocr": extraction.used_ocr,
                 "truncated": extraction.truncated,
@@ -187,10 +211,25 @@ def _run_analysis(uploaded_file, selected_language: str) -> None:
             st.session_state.chat_history = []
             st.session_state.last_error = None
             st.session_state.pop("debug_error", None)
+            log_event(
+                event_type="analyze_document",
+                success=True,
+                latency_ms=int((time.perf_counter() - started) * 1000),
+                form_number=identity.form_number or "",
+                authority_key=identity.authority_key or "",
+                language=lang_code(selected_language),
+            )
 
     except Exception as error:
         st.session_state.last_error = _map_exception_to_message(error, selected_language)
         st.session_state.debug_error = traceback.format_exc()
+        log_event(
+            event_type="analyze_document",
+            success=False,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            language=lang_code(selected_language),
+            error_class=type(error).__name__,
+        )
 
 
 def _render_chat_section(selected_language: str) -> None:
@@ -251,6 +290,7 @@ def _render_chat_section(selected_language: str) -> None:
         st.session_state.chat_history.append({"role": "user", "content": question})
         render_chat_bubble(question, "user", selected_language)
 
+        started = time.perf_counter()
         with st.spinner(strings["chat_processing"]):
             try:
                 st.session_state.user_style_notes = infer_user_style(
@@ -274,10 +314,27 @@ def _render_chat_section(selected_language: str) -> None:
                     st.session_state.form_identity = result.identity.to_dict()
                 if "search_official_sources" in (result.tools_used or []):
                     st.caption(strings.get("chat_tools_used", "Official search tool used"))
+                identity = st.session_state.get("form_identity") or {}
+                log_event(
+                    event_type="chat",
+                    success=True,
+                    latency_ms=int((time.perf_counter() - started) * 1000),
+                    form_number=str(identity.get("form_number") or ""),
+                    authority_key=str(identity.get("authority_key") or ""),
+                    language=code,
+                    tools_used=result.tools_used or [],
+                )
             except Exception as error:
                 answer = _map_exception_to_message(error, selected_language)
                 citations = []
                 st.session_state.debug_error = traceback.format_exc()
+                log_event(
+                    event_type="chat",
+                    success=False,
+                    latency_ms=int((time.perf_counter() - started) * 1000),
+                    language=code,
+                    error_class=type(error).__name__,
+                )
 
         st.session_state.chat_history.append(
             {"role": "assistant", "content": answer, "citations": citations}
@@ -296,6 +353,7 @@ def _render_chat_section(selected_language: str) -> None:
 
 def _render_guided_section(selected_language: str) -> None:
     strings = ui(selected_language)
+    code = lang_code(selected_language)
     st.markdown(
         f"""
         <div class="fb-panel">
@@ -304,21 +362,32 @@ def _render_guided_section(selected_language: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.caption(strings["guided_help"])
+
+    suggestions = strings.get("guided_example_questions") or []
+    if suggestions and not st.session_state.guided_history:
+        st.markdown(f"**{strings.get('guided_suggestions_title', 'Suggested questions')}**")
+        cols = st.columns(min(3, len(suggestions)))
+        for index, question in enumerate(suggestions):
+            if cols[index % len(cols)].button(
+                question,
+                key=f"guided_suggestion_{index}",
+                use_container_width=True,
+            ):
+                st.session_state.guided_pending = question
+                st.rerun()
 
     history = st.session_state.guided_history
-    if not history:
-        st.info(strings["guided_empty"])
     for message in history:
         render_chat_bubble(message["content"], message["role"], selected_language)
 
     pending = st.session_state.pop("guided_pending", None)
-    user_input = st.chat_input(strings["guided_placeholder"], key="guided_chat_input")
+    user_input = st.chat_input(strings["guided_placeholder"], key="guided_chat_input_v2")
     question = pending or user_input
 
     if question:
         st.session_state.guided_history.append({"role": "user", "content": question})
         render_chat_bubble(question, "user", selected_language)
+        started = time.perf_counter()
         with st.spinner(strings["chat_processing"]):
             try:
                 guidance, citations, tools_used = run_guided_intake(
@@ -334,6 +403,15 @@ def _render_guided_section(selected_language: str) -> None:
                 st.session_state.last_guided_citations = [
                     item.to_dict() for item in citations
                 ]
+                log_event(
+                    event_type="guided",
+                    success=True,
+                    latency_ms=int((time.perf_counter() - started) * 1000),
+                    form_number=guidance.form_number or "",
+                    authority_key="",
+                    language=code,
+                    tools_used=tools_used or [],
+                )
             except Exception as error:
                 answer = _map_exception_to_message(error, selected_language)
                 st.session_state.guided_history.append(
@@ -342,6 +420,13 @@ def _render_guided_section(selected_language: str) -> None:
                 st.session_state.guided_result = None
                 st.session_state.last_guided_citations = []
                 st.session_state.debug_error = traceback.format_exc()
+                log_event(
+                    event_type="guided",
+                    success=False,
+                    latency_ms=int((time.perf_counter() - started) * 1000),
+                    language=code,
+                    error_class=type(error).__name__,
+                )
         st.rerun()
 
     if st.session_state.get("debug_error") and st.session_state.guided_result is None:
@@ -349,13 +434,36 @@ def _render_guided_section(selected_language: str) -> None:
             st.code(st.session_state.debug_error)
 
     if st.session_state.guided_result is not None:
-        if "search_official_sources" in (st.session_state.guided_tools_used or []):
+        if any(
+            name in (st.session_state.guided_tools_used or [])
+            for name in (
+                "search_official_sources",
+                "find_relevant_form",
+                "retrieve_form_instructions",
+                "generate_document_checklist",
+            )
+        ):
             st.caption(strings["guided_tools_used"])
         render_guided_result(
             st.session_state.guided_result,
             selected_language,
             citations=st.session_state.get("last_guided_citations") or [],
         )
+        fb1, fb2 = st.columns(2)
+        if fb1.button("👍", key="fb_up"):
+            log_feedback(
+                "up",
+                language=code,
+                form_number=getattr(st.session_state.guided_result, "form_number", "") or "",
+            )
+            st.caption("Thanks.")
+        if fb2.button("👎", key="fb_down"):
+            log_feedback(
+                "down",
+                language=code,
+                form_number=getattr(st.session_state.guided_result, "form_number", "") or "",
+            )
+            st.caption("Thanks.")
 
     if st.session_state.guided_history:
         if st.button(strings["guided_clear"], key="guided_clear_btn"):
@@ -381,17 +489,22 @@ def main() -> None:
     if "language_selector" not in st.session_state:
         st.session_state.language_selector = LANGUAGE_AR
 
-    # Sync ?lang= before CSS so English LTR overrides apply on first paint.
-    qp_lang = st.query_params.get("lang")
-    if isinstance(qp_lang, (list, tuple)):
-        qp_lang = qp_lang[0] if qp_lang else None
-    lang_from_code = {"ar": LANGUAGE_AR, "he": LANGUAGE_HE, "en": LANGUAGE_EN}
-    if qp_lang in lang_from_code:
-        st.session_state.language_selector = lang_from_code[qp_lang]
+    # Sync ?lang= only on first load so the radio remains the source of truth afterward.
+    if "fb_language_bootstrapped" not in st.session_state:
+        qp_lang = st.query_params.get("lang")
+        if isinstance(qp_lang, (list, tuple)):
+            qp_lang = qp_lang[0] if qp_lang else None
+        lang_from_code = {"ar": LANGUAGE_AR, "he": LANGUAGE_HE, "en": LANGUAGE_EN}
+        if qp_lang in lang_from_code:
+            st.session_state.language_selector = lang_from_code[qp_lang]
+            st.session_state.fb_language_query = qp_lang
+        st.session_state.fb_language_bootstrapped = True
 
     selected_language = st.session_state.language_selector
     inject_global_css(selected_language)
+
     selected_language = render_language_switcher(selected_language)
+    inject_global_css(selected_language)
     strings = ui(selected_language)
 
     mode_label = st.session_state.get("app_mode", "guided")
@@ -413,11 +526,11 @@ def main() -> None:
     render_header(selected_language, header_status, mode=mode_label)
 
     with st.sidebar:
-        st.markdown("### FormBridge")
-        st.caption("Admin pages need KB_ADMIN_PASSWORD from .env")
-        st.page_link("app.py", label="Home / FormBridge", icon="🏠")
-        st.page_link("pages/1_Official_Sources.py", label="Official Sources", icon="📚")
-        st.page_link("pages/2_Evals.py", label="Evals", icon="🧪")
+        render_sidebar_nav()
+
+    if not _consent_gate(selected_language):
+        render_footer(selected_language)
+        return
 
     st.markdown(
         f'<p class="fb-mode-label">{html.escape(strings.get("mode_picker", strings["workspace_title"]))}</p>',

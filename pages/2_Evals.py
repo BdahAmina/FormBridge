@@ -9,26 +9,25 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from evals.run import run_offline
-from ui_components import inject_global_css
+from ui_components import inject_global_css, is_admin_unlocked, render_sidebar_nav, unlock_admin
 
 
 load_dotenv()
 
 
 def _authorized() -> bool:
+    if is_admin_unlocked():
+        return True
     expected = os.getenv("KB_ADMIN_PASSWORD", "")
     if not expected:
         st.warning("Set KB_ADMIN_PASSWORD in .env to unlock evals.")
         return False
-    st.info("Enter the admin password from your `.env` file (`KB_ADMIN_PASSWORD`).")
     password = st.text_input("Admin password", type="password", key="evals_admin_password")
-    if not password:
-        st.caption("Waiting for password…")
-        return False
-    if password != expected:
+    if st.button("Unlock", key="evals_admin_unlock"):
+        if unlock_admin(password):
+            st.rerun()
         st.error("Wrong password.")
-        return False
-    return True
+    return False
 
 
 def _render_report(report: dict) -> None:
@@ -133,8 +132,10 @@ def _render_report(report: dict) -> None:
         )
 
 
-st.set_page_config(page_title="Evals", layout="wide")
+st.set_page_config(page_title="Evals", layout="wide", initial_sidebar_state="expanded")
 inject_global_css()
+with st.sidebar:
+    render_sidebar_nav()
 st.title("Evals")
 st.caption("Offline evaluations use fixtures only. They never crawl live government sites.")
 

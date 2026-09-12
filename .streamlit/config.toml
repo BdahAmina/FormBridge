@@ -9,3 +9,7 @@ font = "sans serif"
 [theme.sidebar]
 backgroundColor = "#e9eef5"
 textColor = "#122033"
+
+[client]
+# Hide Streamlit's auto page list — FormBridge renders its own sidebar nav.
+showSidebarNavigation = false

@@ -6,6 +6,8 @@ import json
 import logging
 import time
 from pathlib import Path
+import re
+
 from knowledge_base.authorities import AUTHORITIES, Authority, is_allowed_url
 from knowledge_base.config import KBConfig
 from knowledge_base.models import AuthorityStatus, ChunkMetadata, IndexedChunk, utc_now
@@ -14,6 +16,15 @@ from knowledge_base.text import chunk_text, content_hash, sanitize_evidence, sta
 
 
 LOGGER = logging.getLogger("formbridge.kb")
+_UPDATED_RE = re.compile(
+    r"(?:עודכן|updated|last\s*updated)\s*[:\-]?\s*(\d{1,2}[./]\d{1,2}[./]\d{2,4})",
+    re.IGNORECASE,
+)
+
+
+def _extract_last_updated(text: str) -> str | None:
+    match = _UPDATED_RE.search(text or "")
+    return match.group(1) if match else None
 
 
 def _log(config: KBConfig, event: dict) -> None:
@@ -94,6 +105,7 @@ def ingest_authority(
         if "101" in text and authority.key == "tax":
             form_number = "101"
             form_name = "כרטיס עובד"
+        last_updated_at = _extract_last_updated(text)
 
         pieces = chunk_text(text, config.chunk_size, config.chunk_overlap)
         known = store.known_hashes()
@@ -115,6 +127,7 @@ def ingest_authority(
                 page_number=index,
                 title=authority.name_he,
                 content_hash=digest,
+                last_updated_at=last_updated_at,
                 last_checked_at=attempt,
             )
             if digest in known:

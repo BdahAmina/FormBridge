@@ -19,6 +19,7 @@ FormBridge bridges this gap by combining PDF text extraction, OCR for scanned do
 ## Main Features
 
 - PDF upload with drag-and-drop support
+- Guided form/service intake: describe a situation → clarifying questions → form ID → eligibility, documents, steps, official links
 - Automatic text extraction with OCR fallback for scanned PDFs
 - Structured document analysis displayed in professional cards
 - Explanation in **Arabic** or **simple Hebrew**
@@ -37,7 +38,7 @@ FormBridge bridges this gap by combining PDF text extraction, OCR for scanned do
 |-----------|------------|
 | UI | Streamlit |
 | AI orchestration | CrewAI |
-| Language model | Google Gemini (`gemini/gemini-3.6-flash`) |
+| Language model | Gemini by default; Groq backup via `GROQ_API_KEY` / `LLM_PROVIDER` |
 | PDF text extraction | pypdf |
 | OCR rendering | PyMuPDF (`pymupdf`) |
 | OCR engine | Tesseract (Hebrew, Arabic, English) |
@@ -179,14 +180,17 @@ FormBridge/
 
 The assistant can ground answers in an allowlisted set of Israeli sources:
 
-1. Bituach Leumi (`https://www.btl.gov.il/`)
+1. Bituach Leumi / National Insurance Institute (`https://www.btl.gov.il/`)
 2. GOV.IL
 3. Israel Tax Authority
 4. Population and Immigration Authority
 5. Ministry of Labor
 6. Ministry of Health
 7. Ministry of Education
-8. Kol Zchut — secondary explanation only
+8. Local authorities (municipal / local government portal)
+9. Kol Zchut — secondary explanation only
+
+Each grounded answer shows the **source name**, a **clickable link**, and a **last-checked** (and last-updated when available) date. If no reliable official passage is found, FormBridge shows a clear warning and does not invent laws, requirements, forms, or links.
 
 Default ingestion uses **local fixtures** (`KB_INGEST_MODE=fixtures`) so the app never crawls live sites unless you explicitly set `KB_INGEST_MODE=live`. Live mode still respects the HTTPS allowlist, delay, and retries. It will not bypass login or CAPTCHA.
 

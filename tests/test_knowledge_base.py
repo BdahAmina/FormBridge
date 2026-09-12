@@ -119,7 +119,27 @@ def test_prompt_injection_stripped() -> None:
 
 def test_allowlist() -> None:
     assert is_allowed_url("https://www.btl.gov.il/")
+    assert is_allowed_url("https://www.gov.il/he/departments/local_government")
     assert not is_allowed_url("http://evil.example/")
+
+
+def test_local_authority_fixture_ingests(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    record = ingest_authority("local", config=config)
+    assert record.status == "ok"
+    assert record.chunks >= 1
+
+
+def test_last_updated_extracted_and_cited(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    ingest_authority("local", config=config)
+    store = FileVectorStore(str(Path(config.vector_db_path) / "kb_vectors.json"))
+    hits = retrieve_official("רשות מקומית ארנונה", store=store, config=config)
+    assert hits
+    assert hits[0].citation.last_updated_at
+    text = format_citations([hits[0].citation], "en")
+    assert "Last updated" in text
+    assert "Last checked" in text
 
 
 def test_low_confidence_identity() -> None:

@@ -18,6 +18,7 @@ class Citation:
     last_checked_at: str
     form_number: str = ""
     form_name: str = ""
+    last_updated_at: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -34,6 +35,7 @@ def citation_from_metadata(metadata: ChunkMetadata) -> Citation:
         last_checked_at=metadata.last_checked_at,
         form_number=metadata.form_number,
         form_name=metadata.form_name,
+        last_updated_at=metadata.last_updated_at,
     )
 
 
@@ -45,6 +47,16 @@ def format_citations(citations: list[Citation], language: str = "he") -> str:
         "en": "Sources",
         "he": "מקורות",
     }.get(language, "מקורות")
+    checked_label = {
+        "ar": "آخر تحقق",
+        "en": "Last checked",
+        "he": "נבדק לאחרונה",
+    }.get(language, "Last checked")
+    updated_label = {
+        "ar": "آخر تحديث",
+        "en": "Last updated",
+        "he": "עודכן לאחרונה",
+    }.get(language, "Last updated")
     lines = [f"{heading}:"]
     for item in citations:
         badge = "רשמי" if item.source_type == "official" else "משני / כל זכות"
@@ -52,5 +64,7 @@ def format_citations(citations: list[Citation], language: str = "he") -> str:
         form = f" (טופס {item.form_number})" if item.form_number else ""
         lines.append(f"- {item.authority} — {item.title}{form} [{badge}]")
         lines.append(f"  {item.source_url}{page}")
-        lines.append(f"  Last checked: {item.last_checked_at}")
+        if item.last_updated_at:
+            lines.append(f"  {updated_label}: {item.last_updated_at}")
+        lines.append(f"  {checked_label}: {item.last_checked_at}")
     return "\n".join(lines)

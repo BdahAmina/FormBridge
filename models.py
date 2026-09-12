@@ -14,6 +14,67 @@ NOT_MENTIONED_HE = "לא צוין במסמך"
 NOT_MENTIONED_EN = "Not mentioned in the document"
 
 
+class OfficialLink(BaseModel):
+    title: str = ""
+    url: str = ""
+
+
+class GuidedGuidance(BaseModel):
+    """Structured result for the guided form/service intake flow."""
+
+    status: Literal["need_clarification", "ready"] = "need_clarification"
+    assistant_message: str = ""
+    clarifying_questions: list[str] = Field(default_factory=list)
+    identified_service: str = ""
+    authority: str = ""
+    form_number: str = ""
+    eligibility_summary: str = ""
+    required_documents: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+    official_links: list[OfficialLink] = Field(default_factory=list)
+    confidence_note: str = ""
+
+    @field_validator("clarifying_questions", "required_documents", "steps", mode="before")
+    @classmethod
+    def normalize_string_lists(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            stripped = value.strip()
+            return [stripped] if stripped else []
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return []
+
+    @field_validator("official_links", mode="before")
+    @classmethod
+    def normalize_links(cls, value: object) -> list[dict[str, str]]:
+        if not value:
+            return []
+        if isinstance(value, dict):
+            value = [value]
+        if not isinstance(value, list):
+            return []
+        links: list[dict[str, str]] = []
+        for item in value:
+            if isinstance(item, str) and item.startswith("http"):
+                links.append({"title": item, "url": item})
+            elif isinstance(item, dict):
+                url = str(item.get("url") or item.get("link") or "").strip()
+                title = str(item.get("title") or item.get("name") or url).strip()
+                if url:
+                    links.append({"title": title or url, "url": url})
+        return links
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: object) -> str:
+        text = str(value or "").strip().lower()
+        if text in {"ready", "complete", "done", "answer"}:
+            return "ready"
+        return "need_clarification"
+
+
 class DocumentAnalysis(BaseModel):
     """Structured analysis returned by the AI agent."""
 
@@ -138,4 +199,28 @@ def parse_analysis_response(
         suggested_formal_reply_hebrew="",
         confidence_score=30,
         ocr_warning=ocr_warning,
+    )
+
+
+def parse_guided_response(raw_text: str, language: str = "ar") -> GuidedGuidance:
+    """Parse guided-intake agent output into GuidedGuidance."""
+    fallback_message = {
+        "ar": "أحتاج بعض التفاصيل الإضافية لأحدد الاستمارة أو الخدمة المناسبة.",
+        "he": "אני צריך/ה עוד כמה פרטים כדי לזהות את הטופס או השירות המתאים.",
+        "en": "I need a few more details to identify the right form or service.",
+    }.get(language, "I need a few more details.")
+
+    try:
+        payload = json.loads(_extract_json_block(raw_text))
+        guidance = GuidedGuidance.model_validate(payload)
+        if not guidance.assistant_message:
+            guidance.assistant_message = fallback_message
+        return guidance
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    return GuidedGuidance(
+        status="need_clarification",
+        assistant_message=raw_text.strip() or fallback_message,
+        clarifying_questions=[],
     )

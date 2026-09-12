@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import traceback
 
 import streamlit as st
 
-from agent import analyze_document, ask_document_question, infer_user_style
+from agent import analyze_document, ask_document_question, infer_user_style, run_guided_intake
 from knowledge_base.identify import identify_form
 from models import DocumentAnalysis
 from rag import build_knowledge_base, passages_to_dicts
@@ -33,6 +34,7 @@ from ui_components import (
     render_download_buttons,
     render_empty_state,
     render_footer,
+    render_guided_result,
     render_header,
     render_language_switcher,
     ui,
@@ -55,6 +57,12 @@ def _init_session_state() -> None:
         "form_identity": None,
         "last_error": None,
         "extraction_meta": None,
+        "app_mode": "guided",
+        "guided_history": [],
+        "guided_result": None,
+        "guided_pending": None,
+        "guided_tools_used": [],
+        "last_guided_citations": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -84,6 +92,32 @@ def _reset_analysis_state() -> None:
 def _map_exception_to_message(error: Exception, selected_language: str) -> str:
     err = errors(selected_language)
     text = f"{error}".lower()
+    if any(
+        token in text
+        for token in (
+            "429",
+            "resource_exhausted",
+            "quota exceeded",
+            "exceeded your current quota",
+            "rate-limit",
+            "rate_limit",
+        )
+    ):
+        return err["api_quota"]
+    if any(
+        token in text
+        for token in (
+            "404",
+            "not_found",
+            "no longer available",
+            "is not found",
+            "model_not_found",
+            "does not exist or you do not have access",
+        )
+    ):
+        if "groq" in text:
+            return err.get("api_groq_model_missing", err["api_model_missing"])
+        return err["api_model_missing"]
     if any(
         token in text
         for token in (
@@ -260,6 +294,80 @@ def _render_chat_section(selected_language: str) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def _render_guided_section(selected_language: str) -> None:
+    strings = ui(selected_language)
+    st.markdown(
+        f"""
+        <div class="fb-panel">
+            <div class="fb-section-title">{html.escape(strings["guided_title"])}</div>
+            <span class="fb-bridge-line" style="margin: 0.55rem 0 0.85rem auto;"></span>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption(strings["guided_help"])
+
+    history = st.session_state.guided_history
+    if not history:
+        st.info(strings["guided_empty"])
+    for message in history:
+        render_chat_bubble(message["content"], message["role"], selected_language)
+
+    pending = st.session_state.pop("guided_pending", None)
+    user_input = st.chat_input(strings["guided_placeholder"], key="guided_chat_input")
+    question = pending or user_input
+
+    if question:
+        st.session_state.guided_history.append({"role": "user", "content": question})
+        render_chat_bubble(question, "user", selected_language)
+        with st.spinner(strings["chat_processing"]):
+            try:
+                guidance, citations, tools_used = run_guided_intake(
+                    user_message=question,
+                    selected_language=selected_language,
+                    conversation_history=st.session_state.guided_history[:-1],
+                )
+                st.session_state.guided_result = guidance
+                st.session_state.guided_tools_used = tools_used
+                st.session_state.guided_history.append(
+                    {"role": "assistant", "content": guidance.assistant_message}
+                )
+                st.session_state.last_guided_citations = [
+                    item.to_dict() for item in citations
+                ]
+            except Exception as error:
+                answer = _map_exception_to_message(error, selected_language)
+                st.session_state.guided_history.append(
+                    {"role": "assistant", "content": answer}
+                )
+                st.session_state.guided_result = None
+                st.session_state.last_guided_citations = []
+                st.session_state.debug_error = traceback.format_exc()
+        st.rerun()
+
+    if st.session_state.get("debug_error") and st.session_state.guided_result is None:
+        with st.expander("Technical details (development)"):
+            st.code(st.session_state.debug_error)
+
+    if st.session_state.guided_result is not None:
+        if "search_official_sources" in (st.session_state.guided_tools_used or []):
+            st.caption(strings["guided_tools_used"])
+        render_guided_result(
+            st.session_state.guided_result,
+            selected_language,
+            citations=st.session_state.get("last_guided_citations") or [],
+        )
+
+    if st.session_state.guided_history:
+        if st.button(strings["guided_clear"], key="guided_clear_btn"):
+            st.session_state.guided_history = []
+            st.session_state.guided_result = None
+            st.session_state.guided_tools_used = []
+            st.session_state.pop("last_guided_citations", None)
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def main() -> None:
     st.set_page_config(
         page_title="FormBridge",
@@ -286,12 +394,43 @@ def main() -> None:
     selected_language = render_language_switcher(selected_language)
     strings = ui(selected_language)
 
-    header_status = (
-        "done"
-        if st.session_state.analysis
-        else ("ready" if st.session_state.uploaded_file_id else "idle")
+    mode_label = st.session_state.get("app_mode", "guided")
+    if mode_label == "guided":
+        if st.session_state.guided_result is not None and getattr(
+            st.session_state.guided_result, "status", ""
+        ) == "ready":
+            header_status = "done"
+        elif st.session_state.guided_history:
+            header_status = "ready"
+        else:
+            header_status = "idle"
+    else:
+        header_status = (
+            "done"
+            if st.session_state.analysis
+            else ("ready" if st.session_state.uploaded_file_id else "idle")
+        )
+    render_header(selected_language, header_status, mode=mode_label)
+
+    st.markdown(
+        f'<p class="fb-mode-label">{html.escape(strings.get("mode_picker", strings["workspace_title"]))}</p>',
+        unsafe_allow_html=True,
     )
-    render_header(selected_language, header_status)
+    mode_label = st.radio(
+        "Mode",
+        options=["guided", "upload"],
+        format_func=lambda value: strings["mode_guided"]
+        if value == "guided"
+        else strings["mode_upload"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="app_mode",
+    )
+
+    if mode_label == "guided":
+        _render_guided_section(selected_language)
+        render_footer(selected_language)
+        return
 
     st.markdown(
         f'<div class="fb-panel"><div class="fb-section-title">{strings["workspace_title"]}</div>'
@@ -363,17 +502,60 @@ def main() -> None:
         render_download_buttons(analysis, selected_language)
 
         with st.expander(strings["original_text"]):
-            st.text_area(
-                "Extracted document text",
-                value=st.session_state.document_text or "",
-                height=260,
-                label_visibility="collapsed",
+            doc_text = st.session_state.document_text or ""
+            st.markdown(
+                """
+                <style>
+                .fb-original-text {
+                  direction: rtl !important;
+                  text-align: right !important;
+                  unicode-bidi: plaintext;
+                  white-space: pre-wrap;
+                  font-family: "Noto Sans Hebrew", "Noto Sans Arabic", "Segoe UI", sans-serif !important;
+                  line-height: 1.85;
+                  background: var(--fb-surface-soft);
+                  border: 1px solid var(--fb-border);
+                  border-radius: 12px;
+                  padding: 1rem 1.1rem;
+                  color: var(--fb-text);
+                  font-size: 1.02rem;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<div class="fb-original-text" dir="rtl">{html.escape(doc_text)}</div>',
+                unsafe_allow_html=True,
             )
 
         identity = st.session_state.get("form_identity") or {}
         if identity:
             with st.expander(strings.get("form_identity", "Form identity")):
-                st.write(identity)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(f"**{strings.get('issuing_org', 'Authority')}**")
+                    st.write(identity.get("authority") or "—")
+                    st.markdown("**Form**")
+                    form_no = identity.get("form_number") or ""
+                    form_name = identity.get("form_name") or ""
+                    if form_no and form_name:
+                        st.write(f"{form_no} — {form_name}")
+                    elif form_no:
+                        st.write(form_no)
+                    elif form_name:
+                        st.write(form_name)
+                    else:
+                        st.write("—")
+                with c2:
+                    st.markdown(f"**{strings.get('document_type', 'Category')}**")
+                    st.write(identity.get("category") or "—")
+                    st.markdown(f"**{strings.get('confidence', 'Confidence')}**")
+                    conf = identity.get("confidence")
+                    conf_label = f"{float(conf):.0%}" if isinstance(conf, (int, float)) else "—"
+                    if identity.get("uncertain"):
+                        conf_label = f"{conf_label} (uncertain)"
+                    st.write(conf_label)
 
         kb = st.session_state.get("knowledge_base") or {}
         chunk_count = kb.get("chunk_count", 0)

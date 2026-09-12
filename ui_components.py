@@ -8,7 +8,13 @@ from typing import Any
 import streamlit as st
 import streamlit.components.v1 as components
 
-from models import DocumentAnalysis, NOT_MENTIONED_AR, NOT_MENTIONED_EN, NOT_MENTIONED_HE
+from models import (
+    DocumentAnalysis,
+    GuidedGuidance,
+    NOT_MENTIONED_AR,
+    NOT_MENTIONED_EN,
+    NOT_MENTIONED_HE,
+)
 
 
 LANGUAGE_AR = "العربية"
@@ -17,16 +23,41 @@ LANGUAGE_EN = "English"
 
 UI_STRINGS: dict[str, dict[str, str]] = {
     "ar": {
-        "subtitle": "من المستند الرسمي إلى خطوات واضحة",
+        "subtitle": "نفهم المستند الرسمي معك — ونحوّله إلى خطوات واضحة يمكنك الوثوق بها",
         "kicker": "ذكاء اصطناعي لفهم المستندات",
         "privacy_note": "يتم معالجة المستند فقط لأغراض التحليل ولا يُحفظ على الخادم.",
         "workspace_title": "مساحة العمل",
-        "step_upload": "١. ارفع المستند",
-        "step_language": "٢. اختر لغة الشرح",
-        "step_analyze": "٣. حلّل واسأل",
+        "mode_upload": "رفع مستند",
+        "mode_guided": "اسأل عن استمارة / وضعك",
+        "mode_picker": "اختر طريقة المساعدة",
+        "guided_title": "مساعدة في اختيار الاستمارة أو الخدمة",
+        "guided_help": "صف وضعك أو اسأل سؤالًا. قد يطلب الوكيل تفاصيل إضافية، ثم يحدد الاستمارة ويشرح الخطوات مع رابط رسمي.",
+        "guided_placeholder": "مثال: فقدت عملي وأريد معرفة كيف أطلب دمي أبطالة...",
+        "guided_send": "إرسال",
+        "guided_clear": "بدء محادثة جديدة",
+        "guided_service": "الاستمارة / الخدمة",
+        "guided_authority": "الجهة",
+        "guided_form_number": "رقم الاستمارة",
+        "guided_eligibility": "من قد يستحق",
+        "guided_documents": "مستندات مطلوبة",
+        "guided_steps": "خطوات واضحة",
+        "guided_links": "روابط رسمية",
+        "guided_questions": "أسئلة توضيحية",
+        "guided_tools_used": "استخدم الوكيل أداة البحث في المصادر الرسمية",
+        "guided_empty": "ابدأ بوصف وضعك. مثال: أحتاج تعبئة טופס 101 عند مشغّل جديد.",
+        "step_upload": "ارفع المستند",
+        "step_language": "اختر لغة الشرح",
+        "step_analyze": "حلّل واسأل",
+        "guided_subtitle": "من وصف وضعك إلى استمارة واضحة، خطوات عملية، وروابط رسمية موثوقة",
+        "step_describe": "صف وضعك",
+        "step_clarify": "أجب عن أسئلة التوضيح",
+        "step_guidance": "احصل على الاستمارة والخطوات",
         "status_idle": "بانتظار مستند",
         "status_ready": "جاهز للتحليل",
         "status_done": "تم التحليل",
+        "status_guided_idle": "جاهز لمساعدتك",
+        "status_guided_ready": "جارٍ التوجيه",
+        "status_guided_done": "تم تحديد الخدمة",
         "empty_title": "ارفع مستندًا رسميًا للبدء",
         "empty_body": "سيقرأ FormBridge النص، يشرح المطلوب، ويحوّله إلى خطة عمل يمكنك السؤال عنها.",
         "upload_title": "رفع المستند",
@@ -68,7 +99,9 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "rag_chunks": "مقاطع في قاعدة المعرفة",
         "official_sources": "مصادر رسمية",
         "secondary_source": "مصدر ثانوي",
-        "no_official_source": "تعذر التحقق من إجابة رسمية. راجع الموقع الرسمي للجهة.",
+        "no_official_source": "تعذر التحقق من إجابة رسمية موثوقة. لا تعتمد على معلومات غير مؤكدة — راجع الموقع الرسمي للجهة.",
+        "last_checked": "آخر تحقق",
+        "last_updated": "آخر تحديث",
         "form_identity": "تعرّف على النموذج",
         "download_txt": "تنزيل تقرير (TXT)",
         "download_md": "تنزيل تقرير (Markdown)",
@@ -98,16 +131,41 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         ],
     },
     "he": {
-        "subtitle": "ממסמך רשמי לצעדים ברורים",
+        "subtitle": "אנחנו מבינים איתכם את המסמך הרשמי — והופכים אותו לצעדים ברורים שאפשר לסמוך עליהם",
         "kicker": "בינה מלאכותית להבנת מסמכים",
         "privacy_note": "המסמך מעובד לצורך ניתוח בלבד ואינו נשמר בשרת.",
         "workspace_title": "סביבת עבודה",
-        "step_upload": "1. העלאת מסמך",
-        "step_language": "2. בחירת שפה",
-        "step_analyze": "3. ניתוח ושאלות",
+        "mode_upload": "העלאת מסמך",
+        "mode_guided": "שאלה על טופס / מצב",
+        "mode_picker": "בחרו אופן סיוע",
+        "guided_title": "עזרה בבחירת טופס או שירות",
+        "guided_help": "תארו את המצב או שאלו שאלה. הסוכן ישאל שאלות הבהרה במידת הצורך, יזהה טופס/שירות, וייתן שלבים עם קישור רשמי.",
+        "guided_placeholder": "לדוגמה: פוטרתי מהעבודה ורוצה לדעת איך מגישים תביעה לדמי אבטלה...",
+        "guided_send": "שליחה",
+        "guided_clear": "שיחה חדשה",
+        "guided_service": "הטופס / השירות",
+        "guided_authority": "הגורם",
+        "guided_form_number": "מספר טופס",
+        "guided_eligibility": "מי עשוי להיות זכאי",
+        "guided_documents": "מסמכים נדרשים",
+        "guided_steps": "הוראות שלב אחר שלב",
+        "guided_links": "קישורים רשמיים",
+        "guided_questions": "שאלות הבהרה",
+        "guided_tools_used": "הסוכן השתמש בכלי חיפוש במקורות רשמיים",
+        "guided_empty": "התחילו בתיאור המצב. לדוגמה: אני צריך/ה למלא טופס 101 אצל מעסיק חדש.",
+        "step_upload": "העלאת מסמך",
+        "step_language": "בחירת שפה",
+        "step_analyze": "ניתוח ושאלות",
+        "guided_subtitle": "מתיאור המצב לטופס ברור, צעדים מעשיים וקישורים רשמיים אמינים",
+        "step_describe": "תיאור המצב",
+        "step_clarify": "שאלות הבהרה",
+        "step_guidance": "טופס וצעדים ברורים",
         "status_idle": "ממתין למסמך",
         "status_ready": "מוכן לניתוח",
         "status_done": "הניתוח הושלם",
+        "status_guided_idle": "מוכן לעזור",
+        "status_guided_ready": "בתהליך הכוונה",
+        "status_guided_done": "השירות זוהה",
         "empty_title": "העלו מסמך רשמי כדי להתחיל",
         "empty_body": "FormBridge יקרא את הטקסט, יסביר את הנדרש, ויהפוך אותו לתוכנית פעולה שאפשר לשאול עליה.",
         "upload_title": "העלאת מסמך",
@@ -149,7 +207,9 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "rag_chunks": "קטעים בבסיס הידע",
         "official_sources": "מקורות רשמיים",
         "secondary_source": "מקור משני",
-        "no_official_source": "לא ניתן לאמת תשובה ממקור רשמי. יש לבדוק באתר הרשות.",
+        "no_official_source": "לא ניתן לאמת תשובה ממקור רשמי אמין. אין להסתמך על מידע לא מאומת — בדקו באתר הרשות.",
+        "last_checked": "נבדק לאחרונה",
+        "last_updated": "עודכן לאחרונה",
         "form_identity": "זיהוי הטופס",
         "download_txt": "הורדת דוח (TXT)",
         "download_md": "הורדת דוח (Markdown)",
@@ -179,16 +239,41 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         ],
     },
     "en": {
-        "subtitle": "From official documents to clear steps",
+        "subtitle": "We read the official document with you — and turn it into clear steps you can trust",
         "kicker": "AI for understanding documents",
         "privacy_note": "The document is processed for analysis only and is not stored on the server.",
         "workspace_title": "Workspace",
-        "step_upload": "1. Upload document",
-        "step_language": "2. Choose language",
-        "step_analyze": "3. Analyze and ask",
+        "mode_upload": "Upload document",
+        "mode_guided": "Ask about a form / situation",
+        "mode_picker": "Choose how to get help",
+        "guided_title": "Help choosing a form or service",
+        "guided_help": "Describe your situation or ask a question. The agent may ask follow-ups, identify the form/service, and give steps with an official link.",
+        "guided_placeholder": "Example: I lost my job and want to know how to apply for unemployment benefits...",
+        "guided_send": "Send",
+        "guided_clear": "Start new chat",
+        "guided_service": "Form / service",
+        "guided_authority": "Authority",
+        "guided_form_number": "Form number",
+        "guided_eligibility": "Who may be eligible",
+        "guided_documents": "Required documents",
+        "guided_steps": "Step-by-step instructions",
+        "guided_links": "Official links",
+        "guided_questions": "Clarifying questions",
+        "guided_tools_used": "The agent used the official-sources search tool",
+        "guided_empty": "Start by describing your situation. Example: I need to fill form 101 for a new employer.",
+        "step_upload": "Upload document",
+        "step_language": "Choose language",
+        "step_analyze": "Analyze and ask",
+        "guided_subtitle": "From your situation to a clear form, practical steps, and trusted official links",
+        "step_describe": "Describe your situation",
+        "step_clarify": "Answer clarifying questions",
+        "step_guidance": "Get the form and steps",
         "status_idle": "Waiting for a document",
         "status_ready": "Ready to analyze",
         "status_done": "Analysis complete",
+        "status_guided_idle": "Ready to help",
+        "status_guided_ready": "Guiding you",
+        "status_guided_done": "Service identified",
         "empty_title": "Upload an official document to start",
         "empty_body": "FormBridge will read the text, explain what is required, and turn it into an action plan you can ask about.",
         "upload_title": "Upload document",
@@ -231,7 +316,9 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "rag_chunks": "Chunks in the knowledge base",
         "official_sources": "Official sources",
         "secondary_source": "Secondary source",
-        "no_official_source": "Could not verify an official answer. Check the authority website.",
+        "no_official_source": "Could not verify a reliable official answer. Do not rely on unverified details — check the authority website.",
+        "last_checked": "Last checked",
+        "last_updated": "Last updated",
         "form_identity": "Form identification",
         "download_txt": "Download report (TXT)",
         "download_md": "Download report (Markdown)",
@@ -276,6 +363,18 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
             "تم رفض الوصول إلى Gemini (403). أنشئ مفتاح API جديدًا من Google AI Studio "
             "وتأكد أن Generative Language API مفعّل، ثم ضعه في ملف .env."
         ),
+        "api_quota": (
+            "تم تجاوز حصة Gemini المجانية حالياً (429). انتظر حتى تتجدد الحصة اليومية، "
+            "أو أنشئ مشروعًا/مفتاح API جديدًا في Google AI Studio، أو فعّل الفوترة."
+        ),
+        "api_model_missing": (
+            "نموذج Gemini غير متاح لهذا المفتاح (404). ضع في .env: "
+            "GEMINI_MODEL=gemini/gemini-3.6-flash ثم أعد تشغيل التطبيق."
+        ),
+        "api_groq_model_missing": (
+            "نموذج Groq غير متاح لهذا المفتاح. ضع في .env مثلًا: "
+            "GROQ_MODEL=groq/openai/gpt-oss-20b ثم أعد تشغيل التطبيق."
+        ),
         "generic": "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.",
         "file_too_large": "حجم الملف كبير جدًا. الحد الأقصى 10 ميغابايت.",
     },
@@ -292,6 +391,18 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
             "הגישה ל-Gemini נדחתה (403). צרו מפתח API חדש ב-Google AI Studio, "
             "ודאו ש-Generative Language API מופעל, והדביקו אותו בקובץ .env."
         ),
+        "api_quota": (
+            "חריגה ממכסת Gemini החינמית (429). המתינו לחידוש המכסה היומית, "
+            "או צרו פרויקט/מפתח API חדש ב-Google AI Studio, או הפעילו חיוב."
+        ),
+        "api_model_missing": (
+            "מודל Gemini אינו זמין למפתח זה (404). הגדירו ב-.env: "
+            "GEMINI_MODEL=gemini/gemini-3.6-flash והפעילו מחדש את האפליקציה."
+        ),
+        "api_groq_model_missing": (
+            "מודל Groq אינו זמין למפתח זה. הגדירו ב-.env לדוגמה: "
+            "GROQ_MODEL=groq/openai/gpt-oss-20b והפעילו מחדש את האפליקציה."
+        ),
         "generic": "אירעה שגיאה בעיבוד. נסו שוב.",
         "file_too_large": "גודל הקובץ גדול מדי. המקסימום הוא 10MB.",
     },
@@ -307,6 +418,18 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         "api_denied": (
             "Gemini access was denied (403). Create a new API key in Google AI Studio, "
             "enable the Generative Language API, and put the key in your .env file."
+        ),
+        "api_quota": (
+            "Gemini free-tier quota exceeded (429). Wait for the daily quota to reset, "
+            "create a new API key/project in Google AI Studio, or enable billing."
+        ),
+        "api_model_missing": (
+            "This Gemini model is not available for your key (404). Set in .env: "
+            "GEMINI_MODEL=gemini/gemini-3.6-flash and restart the app."
+        ),
+        "api_groq_model_missing": (
+            "This Groq model is not available for your key. Set in .env e.g. "
+            "GROQ_MODEL=groq/openai/gpt-oss-20b and restart the app."
         ),
         "generic": "Something went wrong while processing. Please try again.",
         "file_too_large": "The file is too large. Maximum size is 10 MB.",
@@ -343,9 +466,28 @@ def inject_global_css(selected_language: str | None = None) -> None:
             .stApp, section.main, .block-container {
                 direction: ltr !important;
             }
-            .fb-hero, .fb-panel, .fb-section-title, .fb-chat-panel {
+            .fb-hero, .fb-panel, .fb-section-title, .fb-chat-panel, .fb-empty, .fb-subtitle, .fb-privacy, .fb-mode-label {
                 direction: ltr !important;
                 text-align: left !important;
+            }
+            .fb-subtitle, .fb-privacy, .fb-mode-label, .fb-section-title {
+                margin-left: 0 !important;
+                margin-right: auto !important;
+            }
+            .fb-bridge-line {
+                margin-left: 0 !important;
+                margin-right: auto !important;
+            }
+            .fb-steps .fb-step, .fb-identity-card {
+                direction: ltr !important;
+                text-align: left !important;
+            }
+            .fb-steps {
+                direction: ltr !important;
+            }
+            .fb-step-num {
+                margin-left: 0 !important;
+                margin-right: 0.45rem !important;
             }
             div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
             [data-testid="stChatInput"] textarea {
@@ -360,30 +502,33 @@ def inject_global_css(selected_language: str | None = None) -> None:
     st.markdown(
         f"""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700&display=swap');
 
             :root {{
-                --fb-navy: #0a1b2e;
-                --fb-blue: #185fa5;
-                --fb-teal: #0f9d9a;
-                --fb-ink: #0a1b2e;
-                --fb-text: #142033;
-                --fb-text-secondary: #3b4d63;
-                --fb-text-muted: #6b7c90;
-                --fb-bg: #e8eef4;
+                --fb-navy: #071525;
+                --fb-blue: #155e75;
+                --fb-teal: #0f766e;
+                --fb-accent: #14b8a6;
+                --fb-ink: #071525;
+                --fb-text: #122033;
+                --fb-text-secondary: #3f556c;
+                --fb-text-muted: #6b8198;
+                --fb-bg: #e9eef5;
                 --fb-surface: #ffffff;
-                --fb-surface-soft: #f4f7fa;
-                --fb-border: #d3deea;
-                --fb-border-subtle: #e4ebf2;
-                --fb-shadow: 0 10px 40px rgba(10, 27, 46, 0.07);
-                --fb-shadow-soft: 0 2px 8px rgba(10, 27, 46, 0.04);
-                --fb-warning-bg: #fff8e8;
-                --fb-warning-border: #ecd59a;
+                --fb-surface-soft: #f3f7fb;
+                --fb-border: #cfdceb;
+                --fb-border-subtle: #e2eaf3;
+                --fb-shadow: 0 24px 60px rgba(7, 21, 37, 0.10);
+                --fb-shadow-soft: 0 8px 24px rgba(7, 21, 37, 0.06);
+                --fb-warning-bg: #fff7e8;
+                --fb-warning-border: #efd7a4;
                 --fb-warning-text: #7a5600;
                 --fb-chat-bg: #ffffff;
                 --fb-code-bg: #eef4f8;
-                --fb-blockquote-bg: #eef8f7;
-                --fb-hero-glow: rgba(15, 157, 154, 0.12);
+                --fb-blockquote-bg: #ecf9f6;
+                --fb-hero-glow: rgba(20, 184, 166, 0.16);
+                --fb-radius: 28px;
+                --fb-radius-sm: 14px;
             }}
 {ltr_override}
         </style>
@@ -397,62 +542,105 @@ def inject_global_css(selected_language: str | None = None) -> None:
             .stApp[data-theme="dark"],
             [data-theme="dark"] .stApp {
                 --fb-navy: #e8f1fb;
-                --fb-blue: #7eb6ff;
-                --fb-teal: #3ecfcb;
+                --fb-blue: #7dd3fc;
+                --fb-teal: #5eead4;
+                --fb-accent: #2dd4bf;
                 --fb-ink: #e8f1fb;
                 --fb-text: #e8eef6;
                 --fb-text-secondary: #c2cedc;
                 --fb-text-muted: #8fa0b3;
-                --fb-bg: #070b12;
-                --fb-surface: #101820;
-                --fb-surface-soft: #16202b;
-                --fb-border: #253140;
-                --fb-border-subtle: #1b2633;
-                --fb-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-                --fb-shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.25);
+                --fb-bg: #050a12;
+                --fb-surface: #0d1520;
+                --fb-surface-soft: #14202e;
+                --fb-border: #243447;
+                --fb-border-subtle: #1a2736;
+                --fb-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+                --fb-shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.3);
                 --fb-warning-bg: #2a210f;
                 --fb-warning-border: #5a4a1c;
                 --fb-warning-text: #f0c75a;
-                --fb-chat-bg: #101820;
-                --fb-code-bg: #16202b;
-                --fb-blockquote-bg: #102224;
-                --fb-hero-glow: rgba(62, 207, 203, 0.08);
+                --fb-chat-bg: #0d1520;
+                --fb-code-bg: #14202e;
+                --fb-blockquote-bg: #102422;
+                --fb-hero-glow: rgba(45, 212, 191, 0.1);
             }
 
             .stApp {
                 background:
-                    radial-gradient(1200px 420px at 10% -10%, var(--fb-hero-glow), transparent 55%),
-                    radial-gradient(900px 360px at 100% 0%, rgba(24, 95, 165, 0.08), transparent 50%),
-                    var(--fb-bg) !important;
+                    radial-gradient(980px 460px at 0% -5%, rgba(15, 118, 110, 0.18), transparent 55%),
+                    radial-gradient(820px 420px at 100% 0%, rgba(21, 94, 117, 0.16), transparent 50%),
+                    linear-gradient(165deg, #f5f8fc 0%, #e9eef5 42%, #e3eaf3 100%) !important;
                 color: var(--fb-text);
-                font-family: "IBM Plex Sans", "Noto Sans Arabic", "Noto Sans Hebrew", "Segoe UI", sans-serif;
+                font-family: "IBM Plex Sans", "Noto Sans Arabic", "Noto Sans Hebrew", sans-serif;
+            }
+
+            .stApp::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
+                opacity: 0.035;
+                background-image:
+                    linear-gradient(rgba(7,21,37,0.55) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(7,21,37,0.55) 1px, transparent 1px);
+                background-size: 48px 48px;
+                z-index: 0;
             }
 
             [data-testid="stDecoration"] { display: none; }
+            header[data-testid="stHeader"] {
+                background: transparent !important;
+            }
+            [data-testid="stToolbar"] {
+                right: 1rem !important;
+            }
             .block-container {
-                max-width: 860px;
-                padding-top: 1.35rem;
-                padding-bottom: 3.5rem;
+                max-width: 980px;
+                padding-top: 0.85rem;
+                padding-bottom: 4.5rem;
+                position: relative;
+                z-index: 1;
             }
 
             .fb-hero {
                 position: relative;
                 overflow: hidden;
-                background: var(--fb-surface);
-                border: 1px solid var(--fb-border);
-                border-radius: 22px;
-                padding: 1.55rem 1.7rem 1.3rem;
-                box-shadow: var(--fb-shadow);
+                background:
+                    linear-gradient(135deg, #071525 0%, #0c2740 48%, #0f4c5c 100%);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 32px;
+                padding: 2rem 2rem 1.55rem;
+                box-shadow: 0 30px 70px rgba(7, 21, 37, 0.28);
                 margin-bottom: 1.15rem;
+                color: #f4faf9;
+                animation: fb-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+            }
+
+            @keyframes fb-rise {
+                from { opacity: 0; transform: translateY(14px) scale(0.985); }
+                to { opacity: 1; transform: translateY(0) scale(1); }
             }
 
             .fb-hero::before {
                 content: "";
                 position: absolute;
-                inset: 0 auto auto 0;
-                width: 100%;
-                height: 3px;
-                background: linear-gradient(90deg, #0a1b2e 0%, #185fa5 52%, #0f9d9a 100%);
+                inset: 0;
+                background:
+                    radial-gradient(520px 240px at 88% 18%, rgba(20,184,166,0.28), transparent 60%),
+                    radial-gradient(420px 200px at 12% 90%, rgba(56,189,248,0.12), transparent 65%);
+                pointer-events: none;
+            }
+
+            .fb-hero::after {
+                content: "";
+                position: absolute;
+                width: 280px;
+                height: 280px;
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 50%;
+                right: -90px;
+                top: -110px;
+                pointer-events: none;
             }
 
             .fb-hero-top {
@@ -461,149 +649,275 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 justify-content: space-between;
                 align-items: flex-start;
                 gap: 1rem;
+                position: relative;
+                z-index: 1;
             }
 
             .fb-brand {
                 display: flex;
                 align-items: center;
-                gap: 0.95rem;
+                gap: 1.05rem;
             }
 
             .fb-mark {
-                width: 54px;
-                height: 54px;
-                border-radius: 16px;
+                width: 64px;
+                height: 64px;
+                border-radius: 20px;
                 background:
-                    linear-gradient(160deg, #0a1b2e 0%, #163a66 70%, #0f9d9a 140%);
+                    linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04));
+                border: 1px solid rgba(255,255,255,0.22);
                 color: #fff;
                 display: grid;
                 place-items: center;
-                font-size: 0.78rem;
-                font-weight: 700;
+                font-family: "Outfit", "IBM Plex Sans", sans-serif;
+                font-size: 0.92rem;
+                font-weight: 800;
                 letter-spacing: 0.08em;
-                box-shadow: 0 8px 20px rgba(10, 27, 46, 0.28);
+                box-shadow: 0 12px 28px rgba(0,0,0,0.25);
+                backdrop-filter: blur(8px);
             }
 
             .fb-kicker {
-                margin: 0 0 0.2rem 0;
-                font-size: 0.68rem;
+                margin: 0 0 0.28rem 0;
+                font-family: "Outfit", "IBM Plex Sans", sans-serif;
+                font-size: 0.72rem;
                 font-weight: 600;
-                letter-spacing: 0.14em;
+                letter-spacing: 0.2em;
                 text-transform: uppercase;
-                color: var(--fb-teal);
+                color: #5eead4;
             }
 
             .fb-title {
-                font-size: 1.85rem;
-                font-weight: 700;
-                color: var(--fb-ink);
+                font-family: "Outfit", "IBM Plex Sans", sans-serif;
+                font-size: 2.35rem;
+                font-weight: 800;
+                color: #ffffff;
                 margin: 0;
-                letter-spacing: -0.03em;
-                line-height: 1;
+                letter-spacing: -0.04em;
+                line-height: 0.95;
             }
 
             .fb-status-pill {
                 display: inline-flex;
                 align-items: center;
-                gap: 0.45rem;
-                padding: 0.38rem 0.75rem;
+                gap: 0.5rem;
+                padding: 0.5rem 0.95rem;
                 border-radius: 999px;
-                font-size: 0.78rem;
+                font-size: 0.8rem;
                 font-weight: 600;
-                background: var(--fb-surface-soft);
-                border: 1px solid var(--fb-border);
-                color: var(--fb-text-secondary);
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.18);
+                color: rgba(255,255,255,0.92);
                 white-space: nowrap;
+                backdrop-filter: blur(10px);
             }
 
             .fb-status-dot {
-                width: 7px;
-                height: 7px;
+                width: 8px;
+                height: 8px;
                 border-radius: 50%;
                 background: #94a3b8;
             }
 
-            .fb-status-ready .fb-status-dot { background: #0f9d9a; box-shadow: 0 0 0 4px rgba(15,157,154,0.16); }
-            .fb-status-done .fb-status-dot { background: #185fa5; box-shadow: 0 0 0 4px rgba(24,95,165,0.16); }
+            .fb-status-ready .fb-status-dot { background: #5eead4; box-shadow: 0 0 0 4px rgba(94,234,212,0.22); }
+            .fb-status-done .fb-status-dot { background: #7dd3fc; box-shadow: 0 0 0 4px rgba(125,211,252,0.22); }
+            .fb-status-idle .fb-status-dot { background: #cbd5e1; }
 
             .fb-subtitle {
                 direction: rtl;
                 text-align: right;
-                color: var(--fb-text-secondary);
-                font-size: 1.02rem;
-                margin: 0.85rem 0 0 0;
+                color: rgba(236, 253, 245, 0.9);
+                font-size: 1.12rem;
+                margin: 1.15rem 0 0 0;
+                line-height: 1.55;
                 font-family: "Noto Sans Arabic", "Noto Sans Hebrew", "IBM Plex Sans", sans-serif;
+                position: relative;
+                z-index: 1;
+                max-width: 36rem;
+                margin-right: 0;
+                margin-left: auto;
             }
 
             .fb-steps {
                 display: grid;
                 grid-template-columns: repeat(3, 1fr);
-                gap: 0.55rem;
-                margin-top: 1.05rem;
+                gap: 0.75rem;
+                margin-top: 1.35rem;
+                position: relative;
+                z-index: 1;
+                direction: rtl;
             }
 
             .fb-step {
                 direction: rtl;
                 text-align: right;
-                background: var(--fb-surface-soft);
-                border: 1px solid var(--fb-border-subtle);
-                border-radius: 12px;
-                padding: 0.55rem 0.7rem;
-                font-size: 0.8rem;
-                color: var(--fb-text-secondary);
+                background: rgba(255,255,255,0.08);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 18px;
+                padding: 0.9rem 0.95rem;
+                font-size: 0.88rem;
+                color: rgba(255,255,255,0.9);
                 font-weight: 500;
+                line-height: 1.45;
+                backdrop-filter: blur(8px);
+                transition: transform 0.2s ease, background 0.2s ease;
+            }
+
+            .fb-step:hover {
+                background: rgba(255,255,255,0.14);
+                transform: translateY(-2px);
+            }
+
+            .fb-step-num {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 1.45rem;
+                height: 1.45rem;
+                border-radius: 50%;
+                background: #14b8a6;
+                color: #042f2e;
+                font-family: "Outfit", sans-serif;
+                font-size: 0.72rem;
+                font-weight: 800;
+                margin-left: 0.45rem;
+                vertical-align: middle;
             }
 
             .fb-privacy {
                 direction: rtl;
                 text-align: right;
-                color: var(--fb-text-muted);
-                font-size: 0.82rem;
-                margin: 0.9rem 0 0 0;
-                padding-top: 0.75rem;
-                border-top: 1px solid var(--fb-border-subtle);
+                color: rgba(226, 232, 240, 0.72);
+                font-size: 0.8rem;
+                margin: 1.15rem 0 0 0;
+                padding-top: 0.95rem;
+                border-top: 1px solid rgba(255,255,255,0.12);
                 font-family: "Noto Sans Arabic", "Noto Sans Hebrew", "IBM Plex Sans", sans-serif;
+                position: relative;
+                z-index: 1;
             }
 
             .fb-panel {
-                background: var(--fb-surface);
+                background: rgba(255,255,255,0.92);
                 border: 1px solid var(--fb-border);
-                border-radius: 18px;
-                padding: 1.15rem 1.3rem 0.35rem;
-                margin-bottom: 0.85rem;
+                border-radius: var(--fb-radius);
+                padding: 1.4rem 1.5rem 0.7rem;
+                margin-bottom: 1rem;
                 box-shadow: var(--fb-shadow-soft);
+                backdrop-filter: blur(10px);
+                animation: fb-rise 0.45s ease-out;
             }
 
             .fb-section-title {
                 direction: rtl;
                 text-align: right;
-                font-size: 1.05rem;
+                font-family: "Outfit", "Noto Sans Arabic", "Noto Sans Hebrew", sans-serif;
+                font-size: 1.2rem;
                 font-weight: 700;
                 color: var(--fb-ink);
-                margin: 0 0 0.35rem 0;
-                font-family: "Noto Sans Arabic", "Noto Sans Hebrew", "IBM Plex Sans", sans-serif;
+                margin: 0 0 0.45rem 0;
+                letter-spacing: -0.02em;
+            }
+
+            .fb-mode-label {
+                direction: rtl;
+                text-align: right;
+                font-size: 0.8rem;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--fb-text-muted);
+                margin: 0.2rem 0 0.45rem 0;
+            }
+
+            .fb-identity-grid {
+                direction: rtl;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 0.8rem;
+                margin: 0.95rem 0 1.1rem 0;
+            }
+
+            .fb-identity-card {
+                background: linear-gradient(180deg, #ffffff 0%, #f3f8f7 100%);
+                border: 1px solid var(--fb-border-subtle);
+                border-radius: 18px;
+                padding: 1rem 1.05rem;
+                box-shadow: var(--fb-shadow-soft);
+            }
+
+            .fb-identity-label {
+                font-size: 0.72rem;
+                font-weight: 700;
+                letter-spacing: 0.05em;
+                color: var(--fb-teal);
+                margin: 0 0 0.4rem 0;
+                text-transform: uppercase;
+            }
+
+            .fb-identity-value {
+                font-size: 1rem;
+                font-weight: 700;
+                color: var(--fb-ink);
+                line-height: 1.45;
+                margin: 0;
+            }
+
+            @media (max-width: 700px) {
+                .fb-steps { grid-template-columns: 1fr; }
+                .fb-identity-grid { grid-template-columns: 1fr; }
+                .fb-title { font-size: 1.85rem; }
+                .fb-hero { padding: 1.5rem 1.25rem 1.25rem; border-radius: 24px; }
             }
 
             .fb-empty {
                 direction: rtl;
                 text-align: right;
-                background: var(--fb-surface);
-                border: 1px dashed var(--fb-border);
-                border-radius: 18px;
-                padding: 1.35rem 1.4rem;
-                margin: 0.4rem 0 1rem 0;
+                background:
+                    linear-gradient(160deg, rgba(255,255,255,0.95), rgba(243,247,251,0.92));
+                border: 1px solid var(--fb-border);
+                border-radius: var(--fb-radius);
+                padding: 1.8rem 1.7rem;
+                margin: 0.5rem 0 1.1rem 0;
+                box-shadow: var(--fb-shadow-soft);
+                position: relative;
+                overflow: hidden;
+            }
+
+            .fb-empty::before {
+                content: "";
+                position: absolute;
+                width: 140px;
+                height: 140px;
+                border-radius: 50%;
+                background: radial-gradient(circle, rgba(15,118,110,0.12), transparent 70%);
+                left: -30px;
+                bottom: -40px;
             }
 
             .fb-empty h3 {
-                margin: 0 0 0.4rem 0;
+                margin: 0 0 0.5rem 0;
                 color: var(--fb-ink);
-                font-size: 1.08rem;
+                font-family: "Outfit", "Noto Sans Arabic", sans-serif;
+                font-size: 1.25rem;
+                position: relative;
             }
 
             .fb-empty p {
                 margin: 0;
                 color: var(--fb-text-muted);
-                line-height: 1.7;
+                line-height: 1.8;
+                position: relative;
+                font-size: 0.98rem;
+            }
+
+            .fb-bridge-line {
+                display: block;
+                width: 72px;
+                height: 4px;
+                border-radius: 999px;
+                background: linear-gradient(90deg, #14b8a6, #38bdf8);
+                margin: 0.85rem 0 0 auto;
             }
 
             /* ── Analysis report (no boxes) ── */
@@ -856,44 +1170,127 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 border: 1.5px dashed #9db4c9;
                 border-radius: 16px;
                 background: var(--fb-surface-soft);
-                padding: 0.6rem;
+                padding: 0.75rem;
+                transition: border-color 0.2s ease, background 0.2s ease;
+            }
+
+            [data-testid="stFileUploader"] section:hover {
+                border-color: var(--fb-teal);
+                background: #f0faf9;
             }
 
             [data-testid="stSelectbox"] {
                 margin-bottom: 0.4rem;
             }
 
-            .stButton > button[kind="primary"] {
-                background: linear-gradient(135deg, #0a1b2e, #185fa5) !important;
-                border: none !important;
-                border-radius: 12px;
-                min-height: 48px;
-                font-weight: 700;
+            /* Mode segmented control */
+            div[data-testid="stRadio"] > div {
+                gap: 0.4rem !important;
+                background: rgba(255,255,255,0.9) !important;
+                border: 1px solid var(--fb-border) !important;
+                border-radius: 18px !important;
+                padding: 0.4rem !important;
+                box-shadow: var(--fb-shadow) !important;
+                margin-bottom: 1rem !important;
+            }
+
+            div[data-testid="stRadio"] label {
+                border-radius: 14px !important;
+                padding: 0.75rem 1.05rem !important;
+                font-weight: 700 !important;
+                font-size: 0.95rem !important;
+                transition: all 0.18s ease !important;
+                border: 1px solid transparent !important;
+            }
+
+            div[data-testid="stRadio"] label:hover {
+                background: rgba(15, 118, 110, 0.08) !important;
+            }
+
+            div[data-testid="stRadio"] label[data-checked="true"],
+            div[data-testid="stRadio"] label:has(input:checked) {
+                background: linear-gradient(135deg, #071525, #0f766e) !important;
                 color: #fff !important;
-                box-shadow: 0 8px 18px rgba(24, 95, 165, 0.22);
+                box-shadow: 0 10px 22px rgba(15, 118, 110, 0.25) !important;
+            }
+
+            .stButton > button[kind="primary"] {
+                background: linear-gradient(135deg, #071525, #0f766e) !important;
+                border: none !important;
+                border-radius: 14px !important;
+                min-height: 52px;
+                font-weight: 700;
+                font-size: 1rem !important;
+                color: #fff !important;
+                box-shadow: 0 14px 28px rgba(15, 118, 110, 0.28);
                 transition: transform 0.15s ease, box-shadow 0.15s ease;
             }
 
             .stButton > button[kind="primary"]:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 10px 22px rgba(24, 95, 165, 0.28);
+                transform: translateY(-2px);
+                box-shadow: 0 18px 34px rgba(15, 118, 110, 0.34);
             }
 
-            .stButton > button[kind="secondary"] {
-                border-radius: 12px;
-                min-height: 44px;
-                border-color: var(--fb-border) !important;
-                color: var(--fb-text) !important;
-                background: var(--fb-surface) !important;
+            .stButton > button[kind="secondary"],
+            .stButton > button {
+                border-radius: 14px !important;
+                min-height: 46px;
+                font-weight: 650 !important;
             }
 
             div[data-testid="stChatMessage"] {
-                border-radius: 14px;
+                border-radius: 18px;
                 border: 1px solid var(--fb-border);
-                background: var(--fb-chat-bg);
-                box-shadow: var(--fb-shadow);
-                padding: 0.35rem 0.5rem;
-                margin-bottom: 0.85rem;
+                background: rgba(255,255,255,0.94);
+                box-shadow: var(--fb-shadow-soft);
+                padding: 0.45rem 0.65rem;
+                margin-bottom: 0.95rem;
+            }
+
+            [data-testid="stChatInput"] {
+                background: transparent !important;
+            }
+
+            [data-testid="stChatInput"] textarea {
+                direction: rtl;
+                text-align: right;
+                font-family: "Noto Sans Arabic", "Noto Sans Hebrew", "IBM Plex Sans", sans-serif;
+                border-radius: 18px !important;
+                background: rgba(255,255,255,0.96) !important;
+                color: var(--fb-text) !important;
+                border: 1px solid var(--fb-border) !important;
+                box-shadow: var(--fb-shadow-soft) !important;
+                min-height: 56px !important;
+            }
+
+            [data-testid="stAlert"] {
+                border-radius: 18px !important;
+                border: 1px solid var(--fb-border) !important;
+                box-shadow: var(--fb-shadow-soft);
+            }
+
+            [data-testid="stFileUploader"] section {
+                border: 2px dashed #9db8c9 !important;
+                border-radius: 20px !important;
+                background: linear-gradient(180deg, #ffffff, #f3f8fb) !important;
+                padding: 1.1rem !important;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            }
+
+            [data-testid="stFileUploader"] section:hover {
+                border-color: #0f766e !important;
+                box-shadow: 0 12px 28px rgba(15, 118, 110, 0.12);
+            }
+
+            .fb-footer {
+                direction: rtl;
+                text-align: right;
+                color: var(--fb-text-muted);
+                font-size: 0.86rem;
+                margin-top: 1.8rem;
+                padding: 1.1rem 0 0.4rem;
+                border-top: 1px solid var(--fb-border-subtle);
+                font-family: "Noto Sans Arabic", "Noto Sans Hebrew", "IBM Plex Sans", sans-serif;
             }
 
             div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
@@ -998,19 +1395,31 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 direction: rtl;
                 text-align: right;
                 border: 1px solid var(--fb-border);
-                background: var(--fb-surface-soft);
-                border-radius: 12px;
-                padding: 0.7rem 0.85rem;
-                margin: 0.45rem 0;
+                background: linear-gradient(180deg, #fff 0%, var(--fb-surface-soft) 100%);
+                border-radius: 14px;
+                padding: 0.85rem 1rem;
+                margin: 0.5rem 0;
                 font-size: 0.88rem;
+                box-shadow: var(--fb-shadow-soft);
             }
-            .fb-cite a { direction: ltr; unicode-bidi: embed; }
+            .fb-cite a {
+                direction: ltr;
+                unicode-bidi: embed;
+                color: var(--fb-blue);
+                text-decoration: none;
+                font-weight: 500;
+                word-break: break-all;
+            }
+            .fb-cite a:hover { text-decoration: underline; }
             .fb-cite-badge {
                 display: inline-block;
-                font-size: 0.72rem;
+                font-size: 0.7rem;
                 font-weight: 700;
-                color: var(--fb-teal);
-                margin-left: 0.35rem;
+                color: #fff;
+                background: var(--fb-teal);
+                border-radius: 999px;
+                padding: 0.12rem 0.5rem;
+                margin-left: 0.4rem;
             }
             .fb-cite-meta { color: var(--fb-text-muted); font-size: 0.78rem; }
 
@@ -1176,13 +1585,40 @@ def render_language_switcher(selected_language: str) -> str:
     return st.session_state.language_selector
 
 
-def render_header(selected_language: str, status: str = "idle") -> None:
+def render_header(
+    selected_language: str,
+    status: str = "idle",
+    mode: str = "upload",
+) -> None:
     strings = ui(selected_language)
-    status_label = {
-        "ready": strings["status_ready"],
-        "done": strings["status_done"],
-    }.get(status, strings["status_idle"])
+    guided = mode == "guided"
+    if guided:
+        status_label = {
+            "ready": strings["status_guided_ready"],
+            "done": strings["status_guided_done"],
+        }.get(status, strings["status_guided_idle"])
+        subtitle = strings["guided_subtitle"]
+        steps = (
+            strings["step_describe"],
+            strings["step_clarify"],
+            strings["step_guidance"],
+        )
+    else:
+        status_label = {
+            "ready": strings["status_ready"],
+            "done": strings["status_done"],
+        }.get(status, strings["status_idle"])
+        subtitle = strings["subtitle"]
+        steps = (
+            strings["step_upload"],
+            strings["step_language"],
+            strings["step_analyze"],
+        )
     status_class = f"fb-status-pill fb-status-{status}"
+    step_html = "".join(
+        f'<div class="fb-step"><span class="fb-step-num">{index}</span>{html.escape(label)}</div>'
+        for index, label in enumerate(steps, start=1)
+    )
     st.markdown(
         f"""
         <div class="fb-hero">
@@ -1199,11 +1635,10 @@ def render_header(selected_language: str, status: str = "idle") -> None:
                     {html.escape(status_label)}
                 </div>
             </div>
-            <p class="fb-subtitle">{html.escape(strings["subtitle"])}</p>
+            <p class="fb-subtitle">{html.escape(subtitle)}</p>
+            <span class="fb-bridge-line"></span>
             <div class="fb-steps">
-                <div class="fb-step">{html.escape(strings["step_upload"])}</div>
-                <div class="fb-step">{html.escape(strings["step_language"])}</div>
-                <div class="fb-step">{html.escape(strings["step_analyze"])}</div>
+                {step_html}
             </div>
             <p class="fb-privacy">{html.escape(strings["privacy_note"])}</p>
         </div>
@@ -1218,11 +1653,78 @@ def render_empty_state(selected_language: str) -> None:
         f"""
         <div class="fb-empty">
             <h3>{html.escape(strings["empty_title"])}</h3>
+            <span class="fb-bridge-line" style="margin: 0.7rem 0 0.85rem auto;"></span>
             <p>{html.escape(strings["empty_body"])}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_guided_result(
+    guidance: GuidedGuidance,
+    selected_language: str,
+    citations: list[dict] | None = None,
+) -> None:
+    """Show clarification questions or the completed guidance cards."""
+    strings = ui(selected_language)
+    st.info(guidance.assistant_message)
+
+    if guidance.status == "need_clarification":
+        questions = guidance.clarifying_questions or []
+        if questions:
+            st.markdown(f"**{strings['guided_questions']}**")
+            for index, question in enumerate(questions):
+                if st.button(question, key=f"guided_q_{index}", use_container_width=True):
+                    st.session_state.guided_pending = question
+                    st.rerun()
+        return
+
+    st.markdown(
+        f"""
+        <div class="fb-identity-grid">
+            <div class="fb-identity-card">
+                <p class="fb-identity-label">{html.escape(strings['guided_service'])}</p>
+                <p class="fb-identity-value">{html.escape(guidance.identified_service or "—")}</p>
+            </div>
+            <div class="fb-identity-card">
+                <p class="fb-identity-label">{html.escape(strings['guided_authority'])}</p>
+                <p class="fb-identity-value">{html.escape(guidance.authority or "—")}</p>
+            </div>
+            <div class="fb-identity-card">
+                <p class="fb-identity-label">{html.escape(strings['guided_form_number'])}</p>
+                <p class="fb-identity-value">{html.escape(guidance.form_number or "—")}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if guidance.eligibility_summary:
+        st.markdown(f"**{strings['guided_eligibility']}**")
+        st.write(guidance.eligibility_summary)
+
+    if guidance.required_documents:
+        st.markdown(f"**{strings['guided_documents']}**")
+        for item in guidance.required_documents:
+            st.write(f"- {item}")
+
+    if guidance.steps:
+        st.markdown(f"**{strings['guided_steps']}**")
+        for index, step in enumerate(guidance.steps, start=1):
+            st.write(f"{index}. {step}")
+
+    if guidance.official_links:
+        st.markdown(f"**{strings['guided_links']}**")
+        for link in guidance.official_links:
+            title = link.title or link.url
+            st.markdown(f"- [{title}]({link.url})")
+
+    if guidance.confidence_note:
+        st.caption(guidance.confidence_note)
+
+    # Always show grounded sources (or the no-source warning) for ready answers.
+    render_citations(citations or [], selected_language, warn_if_empty=True)
 
 
 def _urgency_badge(level: str, strings: dict[str, str]) -> str:
@@ -1499,10 +2001,16 @@ def normalize_chat_response(text: str) -> str:
     return cleaned
 
 
-def render_citations(citations: list[dict], selected_language: str) -> None:
+def render_citations(
+    citations: list[dict],
+    selected_language: str,
+    *,
+    warn_if_empty: bool = True,
+) -> None:
     strings = ui(selected_language)
     if not citations:
-        st.caption(strings["no_official_source"])
+        if warn_if_empty:
+            st.warning(strings["no_official_source"])
         return
     st.markdown(
         f'<div class="fb-section-title" style="font-size:0.92rem;">{html.escape(strings["official_sources"])}</div>',
@@ -1518,12 +2026,19 @@ def render_citations(citations: list[dict], selected_language: str) -> None:
         authority = html.escape(item.get("authority") or "")
         url = item.get("source_url") or ""
         checked = html.escape(item.get("last_checked_at") or "")
+        updated = html.escape(item.get("last_updated_at") or "")
+        date_bits = []
+        if updated:
+            date_bits.append(f'{strings["last_updated"]}: {updated}')
+        if checked:
+            date_bits.append(f'{strings["last_checked"]}: {checked}')
+        meta = " · ".join(date_bits)
         st.markdown(
             f'<div class="fb-cite">'
             f'<span class="fb-cite-badge">{html.escape(badge)}</span> '
             f'<strong>{authority}</strong> — {title}<br>'
             f'<a href="{html.escape(url)}" target="_blank" rel="noopener">{html.escape(url)}</a><br>'
-            f'<span class="fb-cite-meta">Last checked: {checked}</span>'
+            f'<span class="fb-cite-meta">{meta}</span>'
             f"</div>",
             unsafe_allow_html=True,
         )

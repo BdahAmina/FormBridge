@@ -24,7 +24,7 @@ FormBridge bridges this gap by combining PDF text extraction, OCR for scanned do
 - Explanation in **Arabic** or **simple Hebrew**
 - Urgency indicators (low / medium / high)
 - Numbered action plan and suggested formal Hebrew reply when relevant
-- Document-aware follow-up chat
+- Document-aware follow-up chat with CrewAI tools (`search_official_sources`, `search_uploaded_document`)
 - Official Israeli knowledge base (RAG) with citations
 - Offline AI evaluations
 - Download analysis as TXT or Markdown

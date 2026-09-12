@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 NOT_MENTIONED_AR = "غير مذكور في المستند"
 NOT_MENTIONED_HE = "לא צוין במסמך"
+NOT_MENTIONED_EN = "Not mentioned in the document"
 
 
 class DocumentAnalysis(BaseModel):
@@ -77,6 +78,7 @@ class DocumentAnalysis(BaseModel):
                 "n/a",
                 NOT_MENTIONED_AR,
                 NOT_MENTIONED_HE,
+                NOT_MENTIONED_EN,
             }:
                 return []
             return [stripped]
@@ -105,7 +107,11 @@ def parse_analysis_response(
     language: str = "ar",
 ) -> DocumentAnalysis:
     """Parse AI output into DocumentAnalysis with safe fallback."""
-    not_mentioned = NOT_MENTIONED_AR if language == "ar" else NOT_MENTIONED_HE
+    not_mentioned = {
+        "ar": NOT_MENTIONED_AR,
+        "he": NOT_MENTIONED_HE,
+        "en": NOT_MENTIONED_EN,
+    }.get(language, NOT_MENTIONED_AR)
 
     try:
         payload = json.loads(_extract_json_block(raw_text))

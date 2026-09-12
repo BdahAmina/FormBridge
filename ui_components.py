@@ -6,12 +6,14 @@ import html
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 
-from models import DocumentAnalysis, NOT_MENTIONED_AR, NOT_MENTIONED_HE
+from models import DocumentAnalysis, NOT_MENTIONED_AR, NOT_MENTIONED_EN, NOT_MENTIONED_HE
 
 
 LANGUAGE_AR = "العربية"
 LANGUAGE_HE = "עברית פשוטה"
+LANGUAGE_EN = "English"
 
 UI_STRINGS: dict[str, dict[str, str]] = {
     "ar": {
@@ -59,6 +61,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "clear_chat": "مسح المحادثة",
         "chat_agent_name": "FormBridge",
         "chat_suggestions_title": "أسئلة مقترحة",
+        "chat_tools_used": "استخدم الوكيل أداة البحث في المصادر الرسمية",
         "chat_empty": "اسألني أي شيء عن المستند — سأجيب بناءً على محتواه فقط.",
         "rag_title": "مقاطع مسترجعة من المستند (RAG)",
         "rag_empty": "لم يُسترجع أي مقطع بعد. اسأل سؤالًا لعرض المقاطع ذات الصلة.",
@@ -83,6 +86,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "chat_processing": "جاري إعداد الإجابة...",
         "truncated_note": "تم اختصار المستند لأنه طويل جدًا. قد لا يشمل التحليل كل التفاصيل.",
         "example_questions": [
+            "ماذا أحتاج لطلب البطالة (نموذج 1500)؟",
             "ماذا يجب أن أفعل؟",
             "ما الموعد النهائي؟",
             "اشرح هذا القسم بشكل أبسط",
@@ -138,6 +142,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "clear_chat": "ניקוי שיחה",
         "chat_agent_name": "FormBridge",
         "chat_suggestions_title": "שאלות מוצעות",
+        "chat_tools_used": "הסוכן השתמש בכלי חיפוש במקורות רשמיים",
         "chat_empty": "שאלו אותי כל דבר על המסמך — אענה רק על בסיס תוכנו.",
         "rag_title": "קטעים שאוחזרו מהמסמך (RAG)",
         "rag_empty": "עדיין לא אוחזרו קטעים. שאלו שאלה כדי לראות את המקורות.",
@@ -162,6 +167,7 @@ UI_STRINGS: dict[str, dict[str, str]] = {
         "chat_processing": "מכין תשובה...",
         "truncated_note": "המסמך קוצר כי הוא ארוך מדי. ייתכן שהניתוח לא כולל את כל הפרטים.",
         "example_questions": [
+            "מה צריך לטופס 1500 דמי אבטלה?",
             "מה אני צריך/ה לעשות?",
             "מה המועד האחרון?",
             "הסבירו את החלק הזה בצורה פשוטה יותר",
@@ -170,6 +176,88 @@ UI_STRINGS: dict[str, dict[str, str]] = {
             "כתבו תגובה רשמית בעברית",
             "תרגמו את החלק הזה לערבית",
             "מה קורה אם לא אגיב?",
+        ],
+    },
+    "en": {
+        "subtitle": "From official documents to clear steps",
+        "kicker": "AI for understanding documents",
+        "privacy_note": "The document is processed for analysis only and is not stored on the server.",
+        "workspace_title": "Workspace",
+        "step_upload": "1. Upload document",
+        "step_language": "2. Choose language",
+        "step_analyze": "3. Analyze and ask",
+        "status_idle": "Waiting for a document",
+        "status_ready": "Ready to analyze",
+        "status_done": "Analysis complete",
+        "empty_title": "Upload an official document to start",
+        "empty_body": "FormBridge will read the text, explain what is required, and turn it into an action plan you can ask about.",
+        "upload_title": "Upload document",
+        "upload_help": "PDF only — up to 10 MB",
+        "language_title": "Explanation language",
+        "page_language_title": "Interface language",
+        "analyze_button": "Analyze document",
+        "analyze_again": "Re-analyze",
+        "replace_document": "Replace document",
+        "clear_document": "Clear document and start over",
+        "file_selected": "Selected file",
+        "analysis_title": "Smart summary",
+        "summary": "Document summary",
+        "document_type": "Document type",
+        "issuing_org": "Issuing organization",
+        "recipient": "Recipient / person concerned",
+        "why_sent": "Why this document was sent",
+        "urgency": "Urgency level",
+        "important_dates": "Important dates",
+        "deadlines": "Deadlines",
+        "payments": "Amounts and payments",
+        "required_docs": "Required documents",
+        "missing_info": "Missing or unclear information",
+        "actions_required": "Required actions",
+        "action_plan": "Numbered action plan",
+        "suggested_reply": "Suggested formal reply (Hebrew)",
+        "confidence": "Confidence",
+        "ocr_warning_title": "OCR warning",
+        "original_text": "Extracted original text",
+        "chat_title": "Questions about the document",
+        "chat_placeholder": "Ask a question about the document...",
+        "chat_hint": "Ask about deadlines, payments, missing documents, or request a simpler explanation.",
+        "clear_chat": "Clear chat",
+        "chat_agent_name": "FormBridge",
+        "chat_suggestions_title": "Suggested questions",
+        "chat_tools_used": "The agent used the official-sources search tool",
+        "chat_empty": "Ask me anything about the document — I will answer based on its content only.",
+        "rag_title": "Retrieved document passages (RAG)",
+        "rag_empty": "No passages retrieved yet. Ask a question to see related sources.",
+        "rag_chunks": "Chunks in the knowledge base",
+        "official_sources": "Official sources",
+        "secondary_source": "Secondary source",
+        "no_official_source": "Could not verify an official answer. Check the authority website.",
+        "form_identity": "Form identification",
+        "download_txt": "Download report (TXT)",
+        "download_md": "Download report (Markdown)",
+        "footer_disclaimer": (
+            "FormBridge provides AI-generated explanations and is not a substitute "
+            "for legal, tax, medical, or government advice. "
+            "This project is not affiliated with the Israeli government. Always verify on the official source."
+        ),
+        "urgency_low": "Low",
+        "urgency_medium": "Medium",
+        "urgency_high": "High",
+        "language_mismatch": "Explanation language changed. Click “Re-analyze” to see results in the new language.",
+        "no_analysis_yet": "Upload a document and click “Analyze document” to start.",
+        "processing": "FormBridge is reading and analyzing the document...",
+        "chat_processing": "Preparing an answer...",
+        "truncated_note": "The document was shortened because it is very long. The analysis may not include every detail.",
+        "example_questions": [
+            "What do I need for unemployment form 1500?",
+            "What should I do?",
+            "What is the deadline?",
+            "Explain this section more simply",
+            "What documents are missing?",
+            "How much do I need to pay?",
+            "Write a formal reply in Hebrew",
+            "Translate this section into Arabic",
+            "What happens if I do not respond?",
         ],
     },
 }
@@ -184,6 +272,10 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         "ocr_missing": "OCR غير متاح. يرجى تثبيت Tesseract OCR.",
         "ocr_lang_missing": "ملفات لغات OCR مفقودة في مجلد tessdata.",
         "api_key_missing": "مفتاح GEMINI_API_KEY غير موجود في ملف .env.",
+        "api_denied": (
+            "تم رفض الوصول إلى Gemini (403). أنشئ مفتاح API جديدًا من Google AI Studio "
+            "وتأكد أن Generative Language API مفعّل، ثم ضعه في ملف .env."
+        ),
         "generic": "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.",
         "file_too_large": "حجم الملف كبير جدًا. الحد الأقصى 10 ميغابايت.",
     },
@@ -196,14 +288,38 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         "ocr_missing": "OCR אינו זמין. יש להתקין Tesseract OCR.",
         "ocr_lang_missing": "חסרים קובצי שפות OCR בתיקיית tessdata.",
         "api_key_missing": "מפתח GEMINI_API_KEY לא נמצא בקובץ .env.",
+        "api_denied": (
+            "הגישה ל-Gemini נדחתה (403). צרו מפתח API חדש ב-Google AI Studio, "
+            "ודאו ש-Generative Language API מופעל, והדביקו אותו בקובץ .env."
+        ),
         "generic": "אירעה שגיאה בעיבוד. נסו שוב.",
         "file_too_large": "גודל הקובץ גדול מדי. המקסימום הוא 10MB.",
+    },
+    "en": {
+        "no_file": "Please upload a PDF before analysis.",
+        "invalid_type": "Unsupported file type. Please upload a PDF.",
+        "empty_pdf": "We could not read text from the document.",
+        "password_pdf": "The document is password-protected. Upload an unprotected copy.",
+        "corrupted_pdf": "The PDF looks corrupted or invalid.",
+        "ocr_missing": "OCR is unavailable. Please install Tesseract OCR.",
+        "ocr_lang_missing": "OCR language files are missing from the tessdata folder.",
+        "api_key_missing": "GEMINI_API_KEY was not found in the .env file.",
+        "api_denied": (
+            "Gemini access was denied (403). Create a new API key in Google AI Studio, "
+            "enable the Generative Language API, and put the key in your .env file."
+        ),
+        "generic": "Something went wrong while processing. Please try again.",
+        "file_too_large": "The file is too large. Maximum size is 10 MB.",
     },
 }
 
 
 def lang_code(selected_language: str) -> str:
-    return "ar" if selected_language == LANGUAGE_AR else "he"
+    if selected_language == LANGUAGE_AR:
+        return "ar"
+    if selected_language == LANGUAGE_EN:
+        return "en"
+    return "he"
 
 
 def ui(selected_language: str) -> dict[str, Any]:
@@ -220,13 +336,33 @@ def rtl_block(content: str, *, extra_class: str = "") -> str:
     return f'<div class="{class_attr}">{safe}</div>'
 
 
-def inject_global_css() -> None:
-    st.markdown(
+def inject_global_css(selected_language: str | None = None) -> None:
+    ltr_override = ""
+    if selected_language == LANGUAGE_EN:
+        ltr_override = """
+            .stApp, section.main, .block-container {
+                direction: ltr !important;
+            }
+            .fb-hero, .fb-panel, .fb-section-title, .fb-chat-panel {
+                direction: ltr !important;
+                text-align: left !important;
+            }
+            div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
+            [data-testid="stChatInput"] textarea {
+                direction: ltr !important;
+                text-align: left !important;
+            }
+            .fb-chat-en div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+                direction: ltr !important;
+                text-align: left !important;
+            }
         """
+    st.markdown(
+        f"""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700&display=swap');
 
-            :root {
+            :root {{
                 --fb-navy: #0a1b2e;
                 --fb-blue: #185fa5;
                 --fb-teal: #0f9d9a;
@@ -248,8 +384,16 @@ def inject_global_css() -> None:
                 --fb-code-bg: #eef4f8;
                 --fb-blockquote-bg: #eef8f7;
                 --fb-hero-glow: rgba(15, 157, 154, 0.12);
-            }
-
+            }}
+{ltr_override}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    # Keep the large existing stylesheet too (theme + components).
+    st.markdown(
+        """
+        <style>
             .stApp[data-theme="dark"],
             [data-theme="dark"] .stApp {
                 --fb-navy: #e8f1fb;
@@ -910,6 +1054,126 @@ def inject_global_css() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_language_switcher(selected_language: str) -> str:
+    """Pin a 🌐 language popover beside Streamlit's Deploy button."""
+    code_to_lang = {
+        "ar": LANGUAGE_AR,
+        "he": LANGUAGE_HE,
+        "en": LANGUAGE_EN,
+    }
+    qp = st.query_params.get("lang")
+    if isinstance(qp, (list, tuple)):
+        qp = qp[0] if qp else None
+    if qp in code_to_lang:
+        st.session_state.language_selector = code_to_lang[qp]
+        selected_language = code_to_lang[qp]
+    elif "language_selector" not in st.session_state:
+        st.session_state.language_selector = selected_language
+    else:
+        selected_language = st.session_state.language_selector
+
+    options = [LANGUAGE_AR, LANGUAGE_HE, LANGUAGE_EN]
+    if selected_language not in options:
+        selected_language = LANGUAGE_AR
+        st.session_state.language_selector = selected_language
+
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"]) {
+          position: fixed !important;
+          top: 0.45rem !important;
+          right: 7.35rem !important;
+          left: auto !important;
+          width: auto !important;
+          height: 2.25rem !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          z-index: 1000000 !important;
+          overflow: visible !important;
+        }
+        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"]) [data-testid="stPopover"] {
+          margin: 0 !important;
+        }
+        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"])
+          button[data-testid="stPopoverButton"] {
+          min-width: 2.25rem !important;
+          width: 2.25rem !important;
+          height: 2.25rem !important;
+          padding: 0 !important;
+          border-radius: 999px !important;
+          border: 1px solid rgba(49, 51, 63, 0.2) !important;
+          background: #ffffff !important;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+          justify-content: center !important;
+        }
+        div[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"])
+          button[data-testid="stPopoverButton"]
+          span[data-testid="stIconMaterial"] {
+          display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.popover("🌐", help="Language / اللغة / שפה"):
+        choice = st.radio(
+            "Language",
+            options=options,
+            index=options.index(selected_language),
+            label_visibility="collapsed",
+            key="fb_toolbar_language_radio",
+        )
+        if choice != selected_language:
+            st.session_state.language_selector = choice
+            st.query_params["lang"] = lang_code(choice)
+            st.rerun()
+
+    components.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          function place() {
+            const wrap = doc.querySelector(
+              '[data-testid="stLayoutWrapper"]:has(> [data-testid="stPopover"])'
+            );
+            if (!wrap) return;
+            const deploy =
+              doc.querySelector('[data-testid="stAppDeployButton"]') ||
+              Array.from(doc.querySelectorAll("button")).find(function (b) {
+                return ((b.innerText || "") + "").trim() === "Deploy";
+              });
+            if (!deploy) return;
+            const r = deploy.getBoundingClientRect();
+            const size = 36;
+            wrap.style.setProperty("position", "fixed", "important");
+            wrap.style.setProperty("top", Math.max(4, r.top + (r.height - size) / 2) + "px", "important");
+            wrap.style.setProperty("left", Math.max(8, r.left - size - 8) + "px", "important");
+            wrap.style.setProperty("right", "auto", "important");
+            wrap.style.setProperty("z-index", "1000000", "important");
+            wrap.style.setProperty("width", "auto", "important");
+            wrap.style.setProperty("height", size + "px", "important");
+            wrap.style.setProperty("margin", "0", "important");
+          }
+          let n = 0;
+          function tick() {
+            place();
+            n += 1;
+            if (n < 40) setTimeout(tick, 200);
+          }
+          tick();
+          window.parent.addEventListener("resize", place);
+        })();
+        </script>
+        """,
+        height=1,
+        width=1,
+    )
+    return st.session_state.language_selector
 
 
 def render_header(selected_language: str, status: str = "idle") -> None:

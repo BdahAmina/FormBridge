@@ -23,6 +23,7 @@ from pdf_reader import (
 )
 from ui_components import (
     LANGUAGE_AR,
+    LANGUAGE_EN,
     LANGUAGE_HE,
     errors,
     inject_global_css,
@@ -33,6 +34,7 @@ from ui_components import (
     render_empty_state,
     render_footer,
     render_header,
+    render_language_switcher,
     ui,
 )
 
@@ -81,6 +83,17 @@ def _reset_analysis_state() -> None:
 
 def _map_exception_to_message(error: Exception, selected_language: str) -> str:
     err = errors(selected_language)
+    text = f"{error}".lower()
+    if any(
+        token in text
+        for token in (
+            "403",
+            "permission_denied",
+            "denied access",
+            "permission denied",
+        )
+    ):
+        return err["api_denied"]
     mapping = {
         PDFEmptyError: err["empty_pdf"],
         PDFPasswordError: err["password_pdf"],
@@ -225,6 +238,8 @@ def _render_chat_section(selected_language: str) -> None:
                 st.session_state.last_rag_passages = passages_to_dicts(result.document_passages)
                 if result.identity:
                     st.session_state.form_identity = result.identity.to_dict()
+                if "search_official_sources" in (result.tools_used or []):
+                    st.caption(strings.get("chat_tools_used", "Official search tool used"))
             except Exception as error:
                 answer = _map_exception_to_message(error, selected_language)
                 citations = []
@@ -254,19 +269,29 @@ def main() -> None:
     )
 
     _init_session_state()
-    inject_global_css()
 
     if "language_selector" not in st.session_state:
         st.session_state.language_selector = LANGUAGE_AR
 
+    # Sync ?lang= before CSS so English LTR overrides apply on first paint.
+    qp_lang = st.query_params.get("lang")
+    if isinstance(qp_lang, (list, tuple)):
+        qp_lang = qp_lang[0] if qp_lang else None
+    lang_from_code = {"ar": LANGUAGE_AR, "he": LANGUAGE_HE, "en": LANGUAGE_EN}
+    if qp_lang in lang_from_code:
+        st.session_state.language_selector = lang_from_code[qp_lang]
+
     selected_language = st.session_state.language_selector
+    inject_global_css(selected_language)
+    selected_language = render_language_switcher(selected_language)
+    strings = ui(selected_language)
+
     header_status = (
         "done"
         if st.session_state.analysis
         else ("ready" if st.session_state.uploaded_file_id else "idle")
     )
     render_header(selected_language, header_status)
-    strings = ui(selected_language)
 
     st.markdown(
         f'<div class="fb-panel"><div class="fb-section-title">{strings["workspace_title"]}</div>'
@@ -293,19 +318,6 @@ def main() -> None:
     elif st.session_state.uploaded_file_id is not None:
         st.session_state.uploaded_file_id = None
         _reset_analysis_state()
-
-    st.markdown(
-        f'<div class="fb-section-title">{strings["language_title"]}</div>',
-        unsafe_allow_html=True,
-    )
-
-    selected_language = st.selectbox(
-        "Output language",
-        [LANGUAGE_AR, LANGUAGE_HE],
-        label_visibility="collapsed",
-        key="language_selector",
-    )
-    strings = ui(selected_language)
 
     action_col1, action_col2, action_col3 = st.columns([2, 1, 1])
     with action_col1:

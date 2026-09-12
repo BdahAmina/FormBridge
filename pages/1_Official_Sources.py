@@ -75,4 +75,29 @@ if query:
         st.write(hit.chunk.text)
 
 st.subheader("Ingestion history")
-st.json(service.ingestion_history(20))
+history = service.ingestion_history(20)
+if not history:
+    st.info("No ingestion events yet.")
+else:
+    st.dataframe(
+        [
+            {
+                "Time": item.get("timestamp", "—"),
+                "Event": item.get("event", "—"),
+                "Authority": item.get("authority", "—"),
+                "Added": item.get("added", "—"),
+                "Error": item.get("error") or "",
+            }
+            for item in history
+        ],
+        hide_index=True,
+        use_container_width=True,
+    )
+    errors = [item for item in history if item.get("event") == "ingest_error"]
+    if errors:
+        with st.expander(f"Errors ({len(errors)})", expanded=False):
+            for item in errors:
+                st.write(
+                    f"**{item.get('authority', '—')}** · {item.get('timestamp', '—')}"
+                )
+                st.error(item.get("error") or "Unknown error")

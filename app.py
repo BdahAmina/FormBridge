@@ -373,7 +373,7 @@ def main() -> None:
         page_title="FormBridge",
         page_icon="📄",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
 
     _init_session_state()
@@ -411,6 +411,13 @@ def main() -> None:
             else ("ready" if st.session_state.uploaded_file_id else "idle")
         )
     render_header(selected_language, header_status, mode=mode_label)
+
+    with st.sidebar:
+        st.markdown("### FormBridge")
+        st.caption("Admin pages need KB_ADMIN_PASSWORD from .env")
+        st.page_link("app.py", label="Home / FormBridge", icon="🏠")
+        st.page_link("pages/1_Official_Sources.py", label="Official Sources", icon="📚")
+        st.page_link("pages/2_Evals.py", label="Evals", icon="🧪")
 
     st.markdown(
         f'<p class="fb-mode-label">{html.escape(strings.get("mode_picker", strings["workspace_title"]))}</p>',

@@ -19,8 +19,15 @@ def _authorized() -> bool:
     if not expected:
         st.warning("Set KB_ADMIN_PASSWORD in .env to unlock source management.")
         return False
-    password = st.text_input("Admin password", type="password")
-    return password == expected
+    st.info("Enter the admin password from your `.env` file (`KB_ADMIN_PASSWORD`).")
+    password = st.text_input("Admin password", type="password", key="os_admin_password")
+    if not password:
+        st.caption("Waiting for password…")
+        return False
+    if password != expected:
+        st.error("Wrong password.")
+        return False
+    return True
 
 
 st.set_page_config(page_title="Official Sources", layout="wide")

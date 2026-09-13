@@ -1,15 +1,18 @@
 [theme]
 base = "light"
-primaryColor = "#0f766e"
-backgroundColor = "#e9eef5"
-secondaryBackgroundColor = "#ffffff"
-textColor = "#122033"
+primaryColor = "#0B6B63"
+backgroundColor = "#F4F7F9"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#172B3A"
 font = "sans serif"
 
 [theme.sidebar]
-backgroundColor = "#e9eef5"
-textColor = "#122033"
+backgroundColor = "#F8FAFB"
+textColor = "#172B3A"
+
+[server]
+fileWatcherType = "poll"
+folderWatchBlacklist = ["venv", ".git", "__pycache__", ".pytest_cache"]
 
 [client]
-# Hide Streamlit's auto page list — FormBridge renders its own sidebar nav.
 showSidebarNavigation = false

@@ -9,9 +9,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv()
-
 ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / ".env", override=True)
 
 
 def _bool(name: str, default: bool) -> bool:

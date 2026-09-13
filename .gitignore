@@ -7,6 +7,7 @@ data/chroma/
 data/eval_chroma/
 data/*.json
 data/*.jsonl
+data/accounts/
 evals/reports/*.json
 evals/reports/*.md
 

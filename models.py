@@ -172,6 +172,57 @@ def _extract_json_block(raw_text: str) -> str:
     return text
 
 
+def _looks_like_json(text: str) -> bool:
+    stripped = (text or "").strip()
+    return stripped.startswith("{") and ("\"status\"" in stripped or "'status'" in stripped)
+
+
+def _repair_json_text(text: str) -> str:
+    repaired = _extract_json_block(text)
+    repaired = repaired.replace("“", '"').replace("”", '"').replace("„", '"')
+    repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
+    return repaired
+
+
+def _load_json_object(raw_text: str) -> dict:
+    """Parse the first JSON object, including slightly malformed LLM output."""
+    if isinstance(raw_text, dict):
+        return raw_text
+    text = str(raw_text or "").strip()
+    candidates = [_repair_json_text(text), text]
+    for candidate in candidates:
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            start = candidate.find("{")
+            if start == -1:
+                continue
+            try:
+                payload, _ = json.JSONDecoder().raw_decode(candidate[start:])
+            except json.JSONDecodeError:
+                continue
+        if isinstance(payload, str) and _looks_like_json(payload):
+            payload = json.loads(_repair_json_text(payload))
+        if isinstance(payload, dict):
+            return payload
+    raise json.JSONDecodeError("Could not parse guided JSON", text, 0)
+
+
+def _message_from_broken_json(raw_text: str, fallback: str) -> str:
+    match = re.search(
+        r'"assistant_message"\s*:\s*"((?:\\.|[^"\\])*)"',
+        raw_text or "",
+    )
+    if match:
+        try:
+            return json.loads(f'"{match.group(1)}"')
+        except json.JSONDecodeError:
+            return match.group(1)
+    if _looks_like_json(raw_text):
+        return fallback
+    return (raw_text or "").strip() or fallback
+
+
 def parse_analysis_response(
     raw_text: str,
     *,
@@ -222,9 +273,12 @@ def parse_guided_response(raw_text: str, language: str = "ar") -> GuidedGuidance
     }.get(language, "I need a few more details.")
 
     try:
-        payload = json.loads(_extract_json_block(raw_text))
+        payload = _load_json_object(raw_text)
         guidance = GuidedGuidance.model_validate(payload)
-        if not guidance.assistant_message:
+        if _looks_like_json(guidance.assistant_message):
+            nested = _load_json_object(guidance.assistant_message)
+            guidance = GuidedGuidance.model_validate(nested)
+        if not guidance.assistant_message or _looks_like_json(guidance.assistant_message):
             guidance.assistant_message = fallback_message
         return guidance
     except (json.JSONDecodeError, ValueError):
@@ -232,6 +286,26 @@ def parse_guided_response(raw_text: str, language: str = "ar") -> GuidedGuidance
 
     return GuidedGuidance(
         status="need_clarification",
-        assistant_message=raw_text.strip() or fallback_message,
+        assistant_message=_message_from_broken_json(raw_text, fallback_message),
         clarifying_questions=[],
     )
+
+
+def humanize_guided_text(text: str, language: str = "ar") -> str:
+    """Never show raw guided JSON in the chat UI."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+    if not (cleaned.startswith("{") or cleaned.startswith("```")):
+        return cleaned
+    guidance = parse_guided_response(cleaned, language=language)
+    message = (guidance.assistant_message or "").strip()
+    if message and not _looks_like_json(message):
+        return message
+    if guidance.identified_service:
+        return guidance.identified_service
+    return {
+        "ar": "تم تحديد الخدمة. راجعي التفاصيل في البطاقات أدناه.",
+        "he": "השירות זוהה. ראו את הפרטים בכרטיסים למטה.",
+        "en": "The service was identified. See the cards below.",
+    }.get(language, "See the details below.")

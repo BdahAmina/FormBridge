@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+
 import hashlib
 import html
 import time
 import traceback
+from pathlib import Path
 
 import streamlit as st
+from dotenv import dotenv_values
 
-from agent import analyze_document, ask_document_question, infer_user_style, run_guided_intake
 from knowledge_base.identify import identify_form
-from models import DocumentAnalysis
+from models import DocumentAnalysis, humanize_guided_text, parse_guided_response
 from privacy import CONSENT_LABEL
 from rag import build_knowledge_base, passages_to_dicts
 from pdf_reader import (
@@ -25,6 +27,7 @@ from pdf_reader import (
     extract_text_from_pdf,
 )
 from telemetry import log_event, log_feedback
+from chat_ui import render_conversation
 from ui_components import (
     LANGUAGE_AR,
     LANGUAGE_EN,
@@ -32,13 +35,16 @@ from ui_components import (
     errors,
     inject_global_css,
     lang_code,
+    render_account_sidebar,
     render_analysis_dashboard,
-    render_chat_bubble,
+    render_auth_panel,
     render_download_buttons,
     render_empty_state,
+    render_field_validator,
     render_footer,
     render_guided_result,
     render_header,
+    render_landing,
     render_language_switcher,
     render_sidebar_nav,
     ui,
@@ -46,6 +52,35 @@ from ui_components import (
 
 
 MAX_UPLOAD_MB = 10
+
+
+def _guard_streamlit_closed_event_loop() -> None:
+    """Drop ScriptRunner events after Streamlit has already closed its loop."""
+    try:
+        from streamlit.runtime.app_session import AppSession
+    except Exception:
+        return
+    if getattr(AppSession, "_formbridge_closed_loop_guard", False):
+        return
+
+    original = AppSession._on_scriptrunner_event
+
+    def _safe_on_scriptrunner_event(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        loop = getattr(self, "_event_loop", None)
+        if loop is None or loop.is_closed():
+            return
+        try:
+            return original(self, *args, **kwargs)
+        except RuntimeError as error:
+            if "Event loop is closed" in str(error):
+                return
+            raise
+
+    AppSession._on_scriptrunner_event = _safe_on_scriptrunner_event
+    setattr(AppSession, "_formbridge_closed_loop_guard", True)
+
+
+_guard_streamlit_closed_event_loop()
 
 
 def _init_session_state() -> None:
@@ -68,6 +103,9 @@ def _init_session_state() -> None:
         "guided_tools_used": [],
         "last_guided_citations": [],
         "privacy_consent": False,
+        "fb_user": None,
+        "fb_guest": False,
+        "conversation_id": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -78,6 +116,58 @@ def _file_identity(uploaded_file) -> str:
     content = uploaded_file.getvalue()
     digest = hashlib.sha256(content).hexdigest()
     return f"{uploaded_file.name}:{len(content)}:{digest}"
+
+
+def _reset_workspace() -> None:
+    st.session_state.guided_history = []
+    st.session_state.guided_result = None
+    st.session_state.guided_tools_used = []
+    st.session_state.last_guided_citations = []
+    st.session_state.conversation_id = None
+    st.session_state.pop("guided_pending", None)
+    _reset_analysis_state()
+
+
+def _persist_current_conversation() -> None:
+    user = st.session_state.get("fb_user")
+    if not user:
+        return
+    history = st.session_state.guided_history or st.session_state.chat_history
+    title = next(
+        (item.get("content") for item in history if item.get("role") == "user"),
+        "",
+    )
+    if not title:
+        return
+    from auth import save_conversation
+
+    saved = save_conversation(
+        user["user_id"],
+        {
+            "id": st.session_state.get("conversation_id"),
+            "mode": st.session_state.get("app_mode") or "guided",
+            "title": title,
+            "guided_history": st.session_state.guided_history,
+            "chat_history": st.session_state.chat_history,
+        },
+    )
+    st.session_state.conversation_id = saved["id"]
+
+
+def _apply_account_actions() -> None:
+    if st.session_state.pop("_fb_new_chat", None):
+        _reset_workspace()
+    conversation_id = st.session_state.pop("_fb_load_chat", None)
+    user = st.session_state.get("fb_user")
+    if conversation_id and user:
+        from auth import load_conversation
+
+        row = load_conversation(user["user_id"], conversation_id)
+        if row:
+            st.session_state.conversation_id = row["id"]
+            st.session_state.guided_history = row.get("guided_history") or []
+            st.session_state.chat_history = row.get("chat_history") or []
+            st.session_state.app_mode = row.get("mode") or "guided"
 
 
 def _reset_analysis_state() -> None:
@@ -94,9 +184,40 @@ def _reset_analysis_state() -> None:
     st.session_state.pop("debug_error", None)
 
 
+def _active_provider() -> str:
+    values = dotenv_values(Path(__file__).resolve().parent / ".env")
+    choice = (values.get("LLM_PROVIDER") or "auto").strip().lower() or "auto"
+    groq_key = (values.get("GROQ_API_KEY") or "").strip()
+    gemini_key = (
+        values.get("GEMINI_API_KEY") or values.get("GOOGLE_API_KEY") or ""
+    ).strip()
+    placeholders = {"your_api_key_here", "YOUR_API_KEY"}
+    if choice == "groq":
+        return "groq"
+    if choice in {"gemini", "google"}:
+        return "gemini"
+    if gemini_key and gemini_key not in placeholders:
+        return "gemini"
+    if groq_key and groq_key not in placeholders:
+        return "groq"
+    return choice
+
+
 def _map_exception_to_message(error: Exception, selected_language: str) -> str:
     err = errors(selected_language)
     text = f"{error}".lower()
+    provider = _active_provider()
+    using_groq = provider == "groq" or "groq" in text
+    if any(
+        token in text
+        for token in (
+            "tool_use_failed",
+            "failed to parse tool call",
+            "failed_generation",
+            "invalid tool call",
+        )
+    ):
+        return err.get("api_groq_tools", err["generic"])
     if any(
         token in text
         for token in (
@@ -108,6 +229,8 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
             "rate_limit",
         )
     ):
+        if using_groq:
+            return err.get("api_groq_quota", err["api_quota"])
         return err["api_quota"]
     if any(
         token in text
@@ -120,7 +243,7 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
             "does not exist or you do not have access",
         )
     ):
-        if "groq" in text:
+        if using_groq:
             return err.get("api_groq_model_missing", err["api_model_missing"])
         return err["api_model_missing"]
     if any(
@@ -132,6 +255,8 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
             "permission denied",
         )
     ):
+        if using_groq:
+            return err.get("api_groq_denied", err["api_denied"])
         return err["api_denied"]
     if any(
         token in text
@@ -144,11 +269,14 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
         PDFCorruptedError: err["corrupted_pdf"],
         OCRNotAvailableError: err["ocr_missing"],
         OCRLanguageMissingError: err["ocr_lang_missing"],
-        ValueError: err["api_key_missing"],
     }
     for exc_type, message in mapping.items():
         if isinstance(error, exc_type):
             return message
+    if isinstance(error, ValueError):
+        if using_groq or "groq_api_key" in text:
+            return err.get("api_groq_key_missing", err["api_key_missing"])
+        return err["api_key_missing"]
     if isinstance(error, PDFProcessingError):
         return err["generic"]
     return err["generic"]
@@ -189,6 +317,8 @@ def _run_analysis(uploaded_file, selected_language: str) -> None:
             if extraction.truncated:
                 note = strings["truncated_note"]
                 ocr_warning = f"{ocr_warning} {note}" if ocr_warning else note
+
+            from agent import analyze_document
 
             analysis = analyze_document(
                 extraction.text,
@@ -267,32 +397,29 @@ def _render_chat_section(selected_language: str) -> None:
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    chat_history = st.session_state.chat_history
-    if not chat_history:
-        st.markdown(
-            f'<div class="fb-chat-empty">{strings["chat_empty"]}</div>',
-            unsafe_allow_html=True,
-        )
-
-    for message in chat_history:
-        render_chat_bubble(
-            message["content"],
-            message["role"],
-            selected_language,
-            message.get("citations"),
-        )
-
     pending_question = st.session_state.pop("pending_chat_question", None)
+    if pending_question:
+        st.session_state.chat_history.append({"role": "user", "content": pending_question})
+
+    render_conversation(
+        st.session_state.chat_history,
+        selected_language,
+        empty_text=strings["chat_empty"],
+        strings=strings,
+    )
+
     user_input = st.chat_input(strings["chat_placeholder"])
-    question = pending_question or user_input
+    if user_input:
+        st.session_state.pending_chat_question = user_input
+        st.rerun()
 
-    if question:
-        st.session_state.chat_history.append({"role": "user", "content": question})
-        render_chat_bubble(question, "user", selected_language)
-
+    if pending_question:
+        question = pending_question
         started = time.perf_counter()
         with st.spinner(strings["chat_processing"]):
             try:
+                from agent import ask_document_question, infer_user_style
+
                 st.session_state.user_style_notes = infer_user_style(
                     question,
                     st.session_state.chat_history[:-1],
@@ -339,14 +466,13 @@ def _render_chat_section(selected_language: str) -> None:
         st.session_state.chat_history.append(
             {"role": "assistant", "content": answer, "citations": citations}
         )
-        render_chat_bubble(answer, "assistant", selected_language, citations)
+        _persist_current_conversation()
+        st.rerun()
 
     if st.session_state.chat_history:
-        _, toolbar_right = st.columns([4, 1])
-        with toolbar_right:
-            if st.button(strings["clear_chat"], key="clear_chat_btn", use_container_width=True):
-                st.session_state.chat_history = []
-                st.rerun()
+        if st.button(strings["clear_chat"], key="clear_chat_btn", type="tertiary"):
+            st.session_state.chat_history = []
+            st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -377,28 +503,63 @@ def _render_guided_section(selected_language: str) -> None:
                 st.rerun()
 
     history = st.session_state.guided_history
+    rewritten: list[dict] = []
+    history_changed = False
     for message in history:
-        render_chat_bubble(message["content"], message["role"], selected_language)
+        content = message.get("content") or ""
+        if message.get("role") == "assistant" and content.lstrip().startswith(("{", "```")):
+            language = lang_code(selected_language)
+            parsed = parse_guided_response(content, language)
+            content = humanize_guided_text(content, language)
+            history_changed = True
+            if st.session_state.guided_result is None and (
+                parsed.identified_service or parsed.steps or parsed.official_links
+            ):
+                st.session_state.guided_result = parsed
+        rewritten.append({**message, "content": content})
+    if history_changed:
+        st.session_state.guided_history = rewritten
+        history = rewritten
 
     pending = st.session_state.pop("guided_pending", None)
-    user_input = st.chat_input(strings["guided_placeholder"], key="guided_chat_input_v2")
-    question = pending or user_input
+    if pending:
+        history.append({"role": "user", "content": pending})
+        st.session_state.guided_history = history
 
-    if question:
-        st.session_state.guided_history.append({"role": "user", "content": question})
-        render_chat_bubble(question, "user", selected_language)
+    render_conversation(
+        history,
+        selected_language,
+        empty_text=strings.get("guided_empty"),
+        strings=strings,
+    )
+
+    user_input = st.chat_input(strings["guided_placeholder"], key="guided_chat_input_v2")
+    if user_input:
+        st.session_state.guided_pending = user_input
+        st.rerun()
+
+    if pending:
+        question = pending
         started = time.perf_counter()
         with st.spinner(strings["chat_processing"]):
             try:
+                from agent import run_guided_intake
+
                 guidance, citations, tools_used = run_guided_intake(
                     user_message=question,
                     selected_language=selected_language,
                     conversation_history=st.session_state.guided_history[:-1],
+                    previous_guidance=st.session_state.get("guided_result"),
                 )
                 st.session_state.guided_result = guidance
                 st.session_state.guided_tools_used = tools_used
                 st.session_state.guided_history.append(
-                    {"role": "assistant", "content": guidance.assistant_message}
+                    {
+                        "role": "assistant",
+                        "content": humanize_guided_text(
+                            guidance.assistant_message, code
+                        ),
+                    }
                 )
                 st.session_state.last_guided_citations = [
                     item.to_dict() for item in citations
@@ -427,6 +588,7 @@ def _render_guided_section(selected_language: str) -> None:
                     language=code,
                     error_class=type(error).__name__,
                 )
+        _persist_current_conversation()
         st.rerun()
 
     if st.session_state.get("debug_error") and st.session_state.guided_result is None:
@@ -434,21 +596,12 @@ def _render_guided_section(selected_language: str) -> None:
             st.code(st.session_state.debug_error)
 
     if st.session_state.guided_result is not None:
-        if any(
-            name in (st.session_state.guided_tools_used or [])
-            for name in (
-                "search_official_sources",
-                "find_relevant_form",
-                "retrieve_form_instructions",
-                "generate_document_checklist",
-            )
-        ):
-            st.caption(strings["guided_tools_used"])
         render_guided_result(
             st.session_state.guided_result,
             selected_language,
             citations=st.session_state.get("last_guided_citations") or [],
         )
+        render_field_validator(selected_language)
         fb1, fb2 = st.columns(2)
         if fb1.button("👍", key="fb_up"):
             log_feedback(
@@ -523,10 +676,28 @@ def main() -> None:
             if st.session_state.analysis
             else ("ready" if st.session_state.uploaded_file_id else "idle")
         )
-    render_header(selected_language, header_status, mode=mode_label)
+    signed_in = bool(st.session_state.get("fb_user") or st.session_state.get("fb_guest"))
+    if signed_in:
+        render_header(selected_language, header_status, mode=mode_label)
 
     with st.sidebar:
         render_sidebar_nav()
+        render_account_sidebar(selected_language)
+        provider = _active_provider()
+        if provider:
+            st.caption(f"LLM: {provider}")
+
+    _apply_account_actions()
+
+    if not st.session_state.get("fb_user") and not st.session_state.get("fb_guest"):
+        render_landing(selected_language)
+        render_auth_panel(selected_language)
+        render_footer(selected_language)
+        return
+
+    flash = st.session_state.pop("fb_flash", None)
+    if flash:
+        st.success(flash)
 
     if not _consent_gate(selected_language):
         render_footer(selected_language)

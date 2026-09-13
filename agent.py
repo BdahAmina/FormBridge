@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
+from pathlib import Path
 from typing import Any
 
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai.tools import tool
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from dataclasses import dataclass, field
 
@@ -16,6 +19,7 @@ from models import (
     DocumentAnalysis,
     GuidedGuidance,
     OfficialLink,
+    humanize_guided_text,
     parse_analysis_response,
     parse_guided_response,
 )
@@ -32,11 +36,56 @@ from rag import (
 from validation import validate_user_input
 
 
-load_dotenv()
+_ENV_PATH = Path(__file__).resolve().parent / ".env"
+_LLM_FILE_KEYS = {
+    "LLM_PROVIDER",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_MODEL",
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
+}
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini/gemini-3.6-flash").strip() or "gemini/gemini-3.6-flash"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/openai/gpt-oss-20b").strip() or "groq/openai/gpt-oss-20b"
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").strip().lower() or "auto"
+
+def _load_project_env() -> dict[str, str]:
+    """Read FormBridge .env as the source of truth for LLM settings."""
+    load_dotenv(_ENV_PATH, override=True)
+    return {
+        key: (value or "").strip()
+        for key, value in dotenv_values(_ENV_PATH).items()
+    }
+
+
+def _env_llm(name: str, default: str = "") -> str:
+    settings = _load_project_env()
+    if name in settings:
+        return settings[name]
+    if name in _LLM_FILE_KEYS:
+        return default
+    return (os.getenv(name) or default).strip()
+
+
+def _provider_setting() -> str:
+    return (_env_llm("LLM_PROVIDER", "auto") or "auto").strip().lower() or "auto"
+
+
+def _gemini_model() -> str:
+    return _env_llm("GEMINI_MODEL", "gemini/gemini-3.6-flash") or "gemini/gemini-3.6-flash"
+
+
+def _groq_model() -> str:
+    return _env_llm("GROQ_MODEL", "groq/openai/gpt-oss-20b") or "groq/openai/gpt-oss-20b"
+
+
+def current_llm_provider() -> str:
+    """Active provider from .env, resolved on every call."""
+    return _resolve_provider()
+
+
+# Legacy aliases — refreshed from .env so stale process env cannot stick.
+MODEL_NAME = _gemini_model()
+GROQ_MODEL = _groq_model()
+LLM_PROVIDER = _provider_setting()
 MAX_CHAT_HISTORY = 16
 PROMPT_VERSION = "official-rag-v1"
 
@@ -236,17 +285,17 @@ ANALYSIS_JSON_SCHEMA = """
 
 
 def _get_api_key() -> str:
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not api_key or api_key.strip() in {"your_api_key_here", "YOUR_API_KEY"}:
+    api_key = _env_llm("GEMINI_API_KEY") or _env_llm("GOOGLE_API_KEY")
+    if not api_key or api_key in {"your_api_key_here", "YOUR_API_KEY"}:
         raise ValueError("GEMINI_API_KEY was not found in the .env file.")
     # Some Gemini SDK paths look for GOOGLE_API_KEY specifically.
-    os.environ.setdefault("GOOGLE_API_KEY", api_key)
-    os.environ.setdefault("GEMINI_API_KEY", api_key)
+    os.environ["GOOGLE_API_KEY"] = api_key
+    os.environ["GEMINI_API_KEY"] = api_key
     return api_key
 
 
 def _get_groq_key() -> str:
-    api_key = (os.getenv("GROQ_API_KEY") or "").strip()
+    api_key = _env_llm("GROQ_API_KEY")
     if not api_key or api_key in {"your_api_key_here", "YOUR_API_KEY"}:
         raise ValueError("GROQ_API_KEY was not found in the .env file.")
     os.environ["GROQ_API_KEY"] = api_key
@@ -254,16 +303,20 @@ def _get_groq_key() -> str:
 
 
 def _has_gemini_key() -> bool:
-    api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+    api_key = _env_llm("GEMINI_API_KEY") or _env_llm("GOOGLE_API_KEY")
     return bool(api_key) and api_key not in {"your_api_key_here", "YOUR_API_KEY"}
 
 
 def _has_groq_key() -> bool:
-    api_key = (os.getenv("GROQ_API_KEY") or "").strip()
+    api_key = _env_llm("GROQ_API_KEY")
     return bool(api_key) and api_key not in {"your_api_key_here", "YOUR_API_KEY"}
 
 
 def _resolve_provider(provider: str | None = None) -> str:
+    global MODEL_NAME, GROQ_MODEL, LLM_PROVIDER
+    MODEL_NAME = _gemini_model()
+    GROQ_MODEL = _groq_model()
+    LLM_PROVIDER = _provider_setting()
     choice = (provider or LLM_PROVIDER or "auto").strip().lower()
     if choice == "auto":
         if _has_gemini_key():
@@ -290,6 +343,43 @@ def _strip_unsupported_message_fields(messages: list[Any]) -> list[Any]:
     return cleaned
 
 
+def _is_tool_call_failure(error: Exception) -> bool:
+    text = f"{error}".lower()
+    return any(
+        token in text
+        for token in (
+            "tool_use_failed",
+            "failed to parse tool call",
+            "failed_generation",
+            "invalid tool call",
+        )
+    )
+
+
+def _is_rate_limit(error: Exception) -> bool:
+    text = f"{error}".lower()
+    return any(
+        token in text
+        for token in ("rate_limit", "rate limit", "tokens per minute", "tpm")
+    )
+
+
+def _rate_limit_wait_seconds(error: Exception) -> float:
+    match = re.search(r"try again in ([0-9.]+)\s*s", f"{error}", re.I)
+    if match:
+        return min(float(match.group(1)) + 1.0, 45.0)
+    return 12.0
+
+
+def _groq_candidates() -> list[str]:
+    """Prefer the .env model, then the smaller gpt-oss that fits Groq free TPM."""
+    primary = _groq_model()
+    fallback = "groq/openai/gpt-oss-20b"
+    if primary == fallback:
+        return [primary]
+    return [primary, fallback]
+
+
 def _ensure_groq_compat() -> None:
     """Patch CrewAI/LiteLLM so Groq calls do not send unsupported message fields."""
     try:
@@ -314,14 +404,14 @@ def _ensure_groq_compat() -> None:
             params["messages"] = _strip_unsupported_message_fields(params["messages"])
         return params
 
-    CrewLLM._format_messages_for_provider = patched_format  # type: ignore[method-assign]
-    CrewLLM._prepare_completion_params = patched_prepare  # type: ignore[method-assign]
-    CrewLLM._formbridge_groq_sanitized = True
+    setattr(CrewLLM, "_format_messages_for_provider", patched_format)
+    setattr(CrewLLM, "_prepare_completion_params", patched_prepare)
+    setattr(CrewLLM, "_formbridge_groq_sanitized", True)
 
     try:
         import litellm
 
-        litellm.drop_params = True
+        setattr(litellm, "drop_params", True)
         # CrewAI keeps its own module-level litellm reference — patch both.
         targets = [litellm]
         module_litellm = getattr(crewai_llm_module, "litellm", None)
@@ -338,39 +428,54 @@ def _ensure_groq_compat() -> None:
                 if messages:
                     kwargs["messages"] = _strip_unsupported_message_fields(messages)
                 kwargs["drop_params"] = True
-                return _original(*args, **kwargs)
+                if kwargs.get("tools"):
+                    kwargs.setdefault("parallel_tool_calls", False)
+                    kwargs.setdefault("reasoning_format", "hidden")
+                try:
+                    return _original(*args, **kwargs)
+                except Exception as error:
+                    if not _is_rate_limit(error):
+                        raise
+                    time.sleep(_rate_limit_wait_seconds(error))
+                    return _original(*args, **kwargs)
 
-            target.completion = patched_completion
-            target._formbridge_groq_patch = True
-            target.drop_params = True
+            setattr(target, "completion", patched_completion)
+            setattr(target, "_formbridge_groq_patch", True)
+            setattr(target, "drop_params", True)
     except Exception:
         pass
 
 
 # Apply early when Groq is configured as the active provider.
-if LLM_PROVIDER in {"groq", "auto"} and _has_groq_key():
+if _provider_setting() in {"groq", "auto"} and _has_groq_key():
     try:
         _ensure_groq_compat()
     except Exception:
         pass
 
 
-def _build_llm(provider: str | None = None) -> LLM:
+def _build_llm(provider: str | None = None, *, groq_model: str | None = None) -> LLM:
     resolved = _resolve_provider(provider)
     if resolved == "groq":
         _ensure_groq_compat()
         return LLM(
-            model=GROQ_MODEL,
+            model=groq_model or _groq_model(),
             api_key=_get_groq_key(),
             is_litellm=True,
-            drop_params=True,
-            additional_drop_params=[
-                "cache_breakpoint",
-                "prompt_cache_breakpoint",
-                "cache_control",
-            ],
+            temperature=0.2,
+            max_tokens=1400,
+            additional_params={
+                "drop_params": True,
+                "reasoning_format": "hidden",
+                "parallel_tool_calls": False,
+                "additional_drop_params": [
+                    "cache_breakpoint",
+                    "prompt_cache_breakpoint",
+                    "cache_control",
+                ],
+            },
         )
-    return LLM(model=MODEL_NAME, api_key=_get_api_key())
+    return LLM(model=_gemini_model(), api_key=_get_api_key())
 
 
 def _is_llm_provider_failure(error: Exception) -> bool:
@@ -394,13 +499,34 @@ def _is_llm_provider_failure(error: Exception) -> bool:
 
 
 def _kickoff_with_backup(build_crew) -> Any:
-    """Run a Crew, falling back to Groq when Gemini fails and a Groq key exists."""
+    """Run a Crew. Groq uses no tools first so one request stays under free TPM."""
     primary = _resolve_provider()
+    if primary != "groq":
+        try:
+            return build_crew(_build_llm(primary)).kickoff()
+        except Exception as error:
+            if _has_groq_key() and _is_llm_provider_failure(error):
+                return _kickoff_groq(build_crew)
+            raise
+    return _kickoff_groq(build_crew)
+
+
+def _kickoff_groq(build_crew) -> Any:
+    llm = _build_llm("groq")
     try:
-        return build_crew(_build_llm(primary)).kickoff()
+        return build_crew(llm, use_tools=False).kickoff()
+    except TypeError:
+        try:
+            return build_crew(llm).kickoff()
+        except Exception as error:
+            if _is_rate_limit(error):
+                time.sleep(_rate_limit_wait_seconds(error))
+                return build_crew(llm).kickoff()
+            raise
     except Exception as error:
-        if primary != "groq" and _has_groq_key() and _is_llm_provider_failure(error):
-            return build_crew(_build_llm("groq")).kickoff()
+        if _is_rate_limit(error):
+            time.sleep(_rate_limit_wait_seconds(error))
+            return build_crew(llm, use_tools=False).kickoff()
         raise
 
 
@@ -410,6 +536,64 @@ def _language_label(selected_language: str) -> tuple[str, str]:
     if selected_language == "English":
         return "English", "en"
     return "simple Hebrew", "he"
+
+
+def _llm_text(prompt: str) -> str:
+    """Call the active LLM directly, without CrewAI tool-calling."""
+    llm = _build_llm()
+    try:
+        raw = llm.call([{"role": "user", "content": prompt}])
+    except Exception as error:
+        if not _is_rate_limit(error):
+            raise
+        time.sleep(_rate_limit_wait_seconds(error))
+        raw = llm.call([{"role": "user", "content": prompt}])
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return str(raw).strip()
+
+
+_PAYMENT_QUESTION_RE = re.compile(
+    r"pay|payment|fee|amount|₪|شيكل|תשלום|לשלם|أدفع|ادفع|دفع|مبلغ|كم يجب",
+    re.I,
+)
+
+
+def _compact_analysis_for_question(
+    initial_analysis: DocumentAnalysis | dict[str, Any],
+    question: str,
+) -> str:
+    """Keep follow-up prompts short and avoid dragging payments into every answer."""
+    data = (
+        initial_analysis.model_dump()
+        if isinstance(initial_analysis, DocumentAnalysis)
+        else dict(initial_analysis or {})
+    )
+    lines: list[str] = []
+    for key in ("document_type", "issuing_organization", "summary", "why_sent"):
+        value = str(data.get(key) or "").strip()
+        if value:
+            lines.append(f"{key}: {value}")
+    for key in (
+        "deadlines",
+        "important_dates",
+        "required_documents",
+        "actions_required",
+        "action_plan",
+        "missing_or_unclear",
+    ):
+        items = [str(item).strip() for item in (data.get(key) or []) if str(item).strip()]
+        if items:
+            lines.append(f"{key}: " + "; ".join(items[:6]))
+    if _PAYMENT_QUESTION_RE.search(question or ""):
+        amounts = [
+            str(item).strip()
+            for item in (data.get("amounts_and_payments") or [])
+            if str(item).strip()
+        ]
+        if amounts:
+            lines.append("amounts_and_payments: " + "; ".join(amounts[:6]))
+    return "\n".join(lines) or "No structured summary."
 
 
 def _truncate_for_prompt(text: str, limit: int = 60_000) -> str:
@@ -560,6 +744,46 @@ def infer_user_style(
     return notes[-8:]
 
 
+def _prefetch_official_evidence(
+    query: str,
+    service: KnowledgeBaseService,
+    analysis_org: str = "",
+) -> tuple[str, list[Citation]]:
+    """Search the official KB in-process so Groq can answer even if tool JSON fails."""
+    identity = identify_form(query, analysis_org)
+    hits = []
+    try:
+        hits = service.search(query, identity)
+        if not hits:
+            extra = " ".join(
+                part
+                for part in (
+                    identity.form_name,
+                    identity.form_number,
+                    identity.authority,
+                    "שינוי כתובת תעודת זהות דרכון",
+                )
+                if part
+            )
+            hits = service.search(f"{query} {extra}".strip(), None)
+    except Exception:
+        hits = []
+    citations: list[Citation] = []
+    if not hits:
+        return "", citations
+    blocks: list[str] = []
+    for hit in hits[:4]:
+        citations.append(hit.citation)
+        snippet = hit.chunk.text.strip()
+        if len(snippet) > 400:
+            snippet = snippet[:400] + "…"
+        blocks.append(
+            f"[OFFICIAL {hit.chunk.metadata.authority} | {hit.chunk.metadata.source_url}]\n"
+            f"{snippet}"
+        )
+    return "\n\n".join(blocks), citations
+
+
 def retrieve_document_context(
     document_text: str,
     question: str,
@@ -592,10 +816,8 @@ def ask_document_question(
     )
     if isinstance(initial_analysis, DocumentAnalysis):
         analysis_org = initial_analysis.issuing_organization
-        analysis_payload = initial_analysis.model_dump()
     else:
         analysis_org = str((initial_analysis or {}).get("issuing_organization", ""))
-        analysis_payload = initial_analysis
 
     identity = identify_form(f"{document_text}\n{question}", analysis_org)
     service = kb_service or KnowledgeBaseService()
@@ -606,7 +828,84 @@ def ask_document_question(
 
     citations: list[Citation] = []
     tools_used: list[str] = []
-    passages: list[RetrievedPassage] = []
+    retrieved_context, passages = retrieve_document_context(
+        document_text, question, knowledge_base
+    )
+    official_evidence, prefetched = _prefetch_official_evidence(
+        f"{analysis_org} {question}".strip(), service, analysis_org
+    )
+    citations.extend(prefetched)
+    if official_evidence:
+        tools_used.append("search_official_sources")
+    if passages:
+        tools_used.append("search_uploaded_document")
+
+    history_lines: list[str] = []
+    for message in (conversation_history or [])[-MAX_CHAT_HISTORY:]:
+        role = message.get("role", "user")
+        content = message.get("content", "")
+        history_lines.append(f"{role.upper()}: {content}")
+
+    history_block = "\n".join(history_lines) if history_lines else "No previous messages."
+    analysis_summary = _compact_analysis_for_question(initial_analysis, question)
+
+    def _answer_document_directly() -> str:
+        prompt = f"""You are FormBridge, a helpful assistant for one uploaded official document.
+Reply in {output_language}. Answer the user's actual question first.
+Use the uploaded-document passages as the main source. Use official evidence only
+to support or clarify. If a detail is not in the passages or official evidence,
+say it was not mentioned — do not invent fees, payments, laws, or deadlines.
+Do not mention Groq, tools, APIs, or that a search tool failed.
+Do not talk about paying or fees unless the user asked about money or the
+passages themselves mention a specific amount.
+
+How this user likes answers:
+{style_block}
+
+ANALYSIS SUMMARY:
+{analysis_summary}
+
+UPLOADED DOCUMENT PASSAGES:
+{retrieved_context or "No passage retrieved."}
+
+OFFICIAL EVIDENCE:
+{official_evidence or "None pre-fetched."}
+
+RECENT CONVERSATION:
+{history_block}
+
+USER QUESTION:
+{question}
+"""
+        return humanize_guided_text(_llm_text(prompt), lang_code)
+
+    if _resolve_provider() == "groq":
+        answer = _answer_document_directly()
+        unique_citations: list[Citation] = []
+        seen_direct: set[str] = set()
+        for citation in citations:
+            key = citation.source_url or citation.authority
+            if key in seen_direct:
+                continue
+            seen_direct.add(key)
+            unique_citations.append(citation)
+        if unique_citations:
+            answer = f"{answer}\n\n{format_citations(unique_citations, lang_code)}"
+        grounded = bool(unique_citations)
+        abstained = (not grounded) and any(
+            phrase in answer.lower()
+            for phrase in ("could not verify", "לא הצלחתי לאמת", "تعذر التحقق", "not found")
+        )
+        return ChatAnswer(
+            text=answer,
+            document_passages=passages,
+            official_citations=unique_citations,
+            grounded=grounded,
+            identity=identity,
+            abstained=abstained,
+            tools_used=list(dict.fromkeys(tools_used)),
+        )
+
     chat_tools = _build_chat_tools(
         document_text=document_text,
         analysis_org=analysis_org,
@@ -616,17 +915,8 @@ def ask_document_question(
         tools_used_out=tools_used,
         passages_out=passages,
     )
-    llm = _build_llm()
 
-    history_lines: list[str] = []
-    for message in (conversation_history or [])[-MAX_CHAT_HISTORY:]:
-        role = message.get("role", "user")
-        content = message.get("content", "")
-        history_lines.append(f"{role.upper()}: {content}")
-
-    history_block = "\n".join(history_lines) if history_lines else "No previous messages."
-
-    def build_crew(llm: LLM) -> Crew:
+    def build_crew(llm: LLM, use_tools: bool = True) -> Crew:
         chat_agent = Agent(
             role="Helpful Document Companion",
             goal=(
@@ -643,9 +933,10 @@ def ask_document_question(
                 "You do not submit forms or contact authorities."
             ),
             llm=llm,
-            tools=chat_tools,
+            tools=chat_tools if use_tools and _resolve_provider() != "groq" else [],
             verbose=False,
             allow_delegation=False,
+            max_iter=1 if _resolve_provider() == "groq" else 8,
         )
 
         chat_task = Task(
@@ -658,11 +949,9 @@ Exception: if the user explicitly asks for a formal Hebrew reply, write that par
 How this user likes answers (learn and follow these):
 {style_block}
 
-Tools (you must use them when relevant):
-- search_official_sources: call this for forms, required documents, eligibility,
-  deadlines, fees, or questions like "What do I need for unemployment form 1500?"
-  / "מה צריך לטופס 1500 דמי אבטלה?" / "ماذا أحتاج لطلب البطالة 1500؟".
-- search_uploaded_document: call this for what the uploaded letter/PDF itself says.
+Use the uploaded-document passages and official evidence already provided.
+Do not invent a payment or fee unless the user asked about money or the
+passages mention a specific amount.
 
 Conversation memory:
 - Use the recent conversation. Do not repeat the same explanation if they already heard it.
@@ -699,14 +988,20 @@ Source priority:
 4. Kol Zchut only as secondary explanation — never as the sole source for requirements
 5. Never fall back to unverified general knowledge for laws, forms, requirements, or links
 
-Initial structured analysis (JSON):
-{json.dumps(analysis_payload, ensure_ascii=False, indent=2)}
+Analysis summary:
+{analysis_summary}
+
+Uploaded document passages:
+{retrieved_context or "No passage retrieved."}
 
 Form identification hint:
 {json.dumps(identity.to_dict(), ensure_ascii=False)}
 
 Recent conversation:
 {history_block}
+
+Official evidence:
+{official_evidence or "None pre-fetched."}
 
 User question:
 {question}
@@ -724,8 +1019,11 @@ Reply only with the assistant message. Do not invent a Sources list; the applica
             verbose=False,
         )
 
-    result = _kickoff_with_backup(build_crew)
-    answer = str(result.raw).strip()
+    try:
+        result = _kickoff_with_backup(build_crew)
+        answer = str(result.raw).strip()
+    except Exception:
+        answer = _answer_document_directly()
 
     unique_citations: list[Citation] = []
     seen_urls: set[str] = set()
@@ -783,6 +1081,7 @@ def run_guided_intake(
     selected_language: str,
     conversation_history: list[dict[str, str]] | None = None,
     kb_service: KnowledgeBaseService | None = None,
+    previous_guidance: GuidedGuidance | None = None,
 ) -> tuple[GuidedGuidance, list[Citation], list[str]]:
     """Guide a user from a situation description to a form/service plan."""
     output_language, lang_code = _language_label(selected_language)
@@ -806,73 +1105,115 @@ def run_guided_intake(
     )
     # Guided intake uses all KB/validation tools (not the uploaded-PDF tool).
     guided_tools = [item for item in chat_tools if item.name != "search_uploaded_document"]
-
     history_lines: list[str] = []
     for message in (conversation_history or [])[-MAX_CHAT_HISTORY:]:
         role = message.get("role", "user")
         content = message.get("content", "")
         history_lines.append(f"{role.upper()}: {content}")
     history_block = "\n".join(history_lines) if history_lines else "No previous messages."
+    search_query = user_message
+    if previous_guidance:
+        search_query = (
+            f"{previous_guidance.identified_service} {previous_guidance.authority} "
+            f"{previous_guidance.form_number} {user_message}"
+        )
+    elif conversation_history:
+        prior = " ".join(
+            item.get("content", "") for item in conversation_history[-4:]
+        )
+        search_query = f"{prior}\n{user_message}"
+    evidence_block, prefetched = _prefetch_official_evidence(search_query, service)
+    citations.extend(prefetched)
+    if evidence_block:
+        tools_used.append("search_official_sources")
+    official_evidence = evidence_block or "No official passage was pre-fetched."
+    is_followup = bool(conversation_history or previous_guidance)
 
-    def build_crew(llm: LLM) -> Crew:
+    def _answer_directly() -> GuidedGuidance:
+        previous_block = ""
+        if previous_guidance:
+            previous_block = json.dumps(
+                {
+                    "service": previous_guidance.identified_service,
+                    "authority": previous_guidance.authority,
+                    "form_number": previous_guidance.form_number,
+                    "steps": previous_guidance.steps,
+                    "documents": previous_guidance.required_documents,
+                    "summary": previous_guidance.assistant_message,
+                },
+                ensure_ascii=False,
+            )
+        if is_followup:
+            prompt = f"""You are FormBridge, a helpful assistant for Israeli government forms.
+Answer the user's question in {output_language}. Be direct and practical.
+Use the conversation and official evidence. If a detail is missing, say what is known
+and what to confirm on the official website. Do not output JSON. Do not mention tools.
+
+PREVIOUS PLAN:
+{previous_block or "None"}
+
+OFFICIAL EVIDENCE:
+{official_evidence}
+
+CONVERSATION:
+{history_block}
+
+USER QUESTION:
+{user_message}
+"""
+            text = humanize_guided_text(_llm_text(prompt), lang_code)
+            guidance = (
+                previous_guidance.model_copy()
+                if previous_guidance
+                else GuidedGuidance(status="ready")
+            )
+            guidance.status = "ready"
+            guidance.assistant_message = text
+            return guidance
+        prompt = f"""You are FormBridge. Reply in {output_language}.
+Identify the Israeli form/service and answer with useful steps.
+Return ONLY JSON matching:
+{GUIDED_JSON_SCHEMA}
+
+OFFICIAL EVIDENCE:
+{official_evidence}
+
+USER:
+{user_message}
+"""
+        return parse_guided_response(_llm_text(prompt), language=lang_code)
+
+    def build_crew(llm: LLM, use_tools: bool = True) -> Crew:
+        groq_mode = _resolve_provider() == "groq"
         guide_agent = Agent(
             role="Israeli Forms Navigation Guide",
-            goal=(
-                "Help users identify the right Israeli government form or service, "
-                "ask clarifying questions when needed, and give grounded step-by-step guidance."
-            ),
+            goal="Identify the right Israeli form/service and give grounded steps.",
             backstory=(
-                "You are FormBridge's intake guide. You help Arabic-speaking and multilingual "
-                "users navigate Israeli administrative processes. You use official tools "
-                "before giving eligibility, document, or filing advice. You never invent "
-                "laws, requirements, forms, or links. If the tool finds nothing reliable, you say "
-                "so clearly and refuse to fabricate guidance. You never submit forms."
+                "FormBridge intake guide. Use only official evidence. "
+                "Never invent laws, forms, or URLs. Never submit forms."
             ),
             llm=llm,
-            tools=guided_tools,
+            tools=guided_tools if use_tools and not groq_mode else [],
             verbose=False,
             allow_delegation=False,
+            max_iter=1 if groq_mode else 8,
         )
 
         guide_task = Task(
             description=f"""
-Help the user with an Israeli form or government-service question.
-
-Response language for all user-facing strings: {output_language}
-
-Complete user flow you must support:
-1. Understand the user's question or situation.
-2. If important details are missing, ask follow-up clarifying questions.
-3. Identify the relevant Israeli form or government service.
-4. Explain eligibility cautiously, important fields, and required documents.
-5. Provide clear step-by-step instructions and a pre-submission preview_summary.
-6. Link to the official source or form URL.
-7. Never submit anything on the user's behalf. ready_to_file means "ready to guide filing", not auto-submit.
-
-Tools (use them):
-- find_relevant_form
-- search_official_sources
-- retrieve_form_instructions
-- generate_document_checklist
-- validate_user_input (for israeli_id/email/phone/date/required values the user provides)
-
-Rules:
-- Call tools before giving concrete eligibility/document/filing advice.
-- If the situation is ambiguous, set status to need_clarification and ask 1-3 short clarifying questions.
-- When enough detail exists, set status to ready and fill guidance fields ONLY from tool evidence.
-- If tools conflict, say so in confidence_note and prefer the owning authority.
-- Prefer official authorities: BTL, Tax Authority, PIBA, Labor, Health, GOV.IL,
-  Education, and local authorities when relevant. Kol Zchut is secondary only.
-- Never invent laws, requirements, form numbers, documents, steps, or URLs.
-- official_links must only contain HTTPS URLs returned by tools (allowlisted sources).
-- Never claim FormBridge submits forms or replaces legal advice.
-- Return ONLY valid JSON matching this schema:
+Reply in {output_language}. Return ONLY JSON matching:
 {GUIDED_JSON_SCHEMA}
 
-Conversation so far:
+Use only this official evidence. If it is missing, set status=need_clarification
+and tell the user to check the official authority website. Do not invent URLs.
+
+OFFICIAL EVIDENCE:
+{official_evidence}
+
+CONVERSATION:
 {history_block}
 
-Latest user message:
+USER:
 {user_message}
 """,
             expected_output="Valid JSON only, matching the guided intake schema.",
@@ -886,8 +1227,14 @@ Latest user message:
             verbose=False,
         )
 
-    result = _kickoff_with_backup(build_crew)
-    guidance = parse_guided_response(str(result.raw), language=lang_code)
+    try:
+        if is_followup or _resolve_provider() == "groq":
+            guidance = _answer_directly()
+        else:
+            result = _kickoff_with_backup(build_crew)
+            guidance = parse_guided_response(str(result.raw), language=lang_code)
+    except Exception:
+        guidance = _answer_directly()
 
     unique_citations: list[Citation] = []
     seen: set[str] = set()

@@ -60,6 +60,7 @@ Tools return structured `STATUS=success` / `STATUS=failure` responses with valid
 ### Product & safety
 - Arabic / Hebrew / English UI with RTL support
 - Landing hero, chat, new-chat, history, suggested questions, loading states, clear errors
+- Register / login / logout (PBKDF2), guest mode, per-user conversation history
 - Privacy notice + consent before use; sensitive values masked in logs
 - Anonymized telemetry and a password-protected **Monitor** page
 - Offline evals + unit tests
@@ -72,7 +73,7 @@ Tools return structured `STATUS=success` / `STATUS=failure` responses with valid
 | 4 | Form assistance | Recommend form, fields, documents, missing info, validators, preview; no auto-submit |
 | 5 | Multilingual | Arabic, Hebrew, English + RTL |
 | 6 | Professional UI | Landing, chat, history, suggestions, spinners, errors, source cards, responsive branding |
-| 7 | Accounts & privacy | Consent gate, sensitive-value masking, secrets not in Git |
+| 7 | Accounts & privacy | Register/login/logout, hashed passwords, per-user history, consent, masking, no secrets in Git |
 | 8 | Agent tools | Named tools, structured params, validation, success/failure, timeouts on live fetch |
 | 9 | Evals & testing | Dataset + metrics + `pytest` + readable reports |
 | 10 | Admin / monitoring | Official Sources, Evals, Monitor |
@@ -88,7 +89,7 @@ Tools return structured `STATUS=success` / `STATUS=failure` responses with valid
 | PDF text | pypdf |
 | OCR | PyMuPDF + Tesseract (`heb` / `ara` / `eng`) |
 | Official RAG | Local hashed embeddings + file vector store |
-| Auth | — (session-only; accounts not enabled) |
+| Auth | Local accounts (PBKDF2) + guest mode; per-user history |
 | Structured output | Pydantic |
 | Config | python-dotenv |
 | Tests | pytest + offline eval runner |
@@ -198,6 +199,8 @@ SOURCE_UPDATE_INTERVAL_HOURS=168
 | `KB_INGEST_MODE` | `fixtures` (default, offline-safe) or `live` (allowlisted HTTPS only) |
 | `KB_ADMIN_PASSWORD` | Unlocks Admin sidebar links + Official Sources / Evals / Monitor |
 | `SOURCE_UPDATE_INTERVAL_HOURS` | Hours before KB is considered stale and refreshed |
+
+Signed-in users can change their password from the website. There is no email reset or welcome mail.
 
 Get a Gemini key from [Google AI Studio](https://aistudio.google.com/). Groq is optional but useful when Gemini quota is exhausted.
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import streamlit as st  # pyright: ignore[reportMissingImports]
@@ -11,32 +10,33 @@ from dotenv import load_dotenv
 
 from knowledge_base.service import KnowledgeBaseService
 from telemetry import summarize
-from ui_components import inject_global_css, is_admin_unlocked, render_sidebar_nav, unlock_admin
+from ui_components import (
+    LANGUAGE_EN,
+    current_user_is_admin,
+    inject_global_css,
+    render_account_sidebar,
+    render_sidebar_nav,
+)
 
 
 load_dotenv()
 
 
 def _authorized() -> bool:
-    if is_admin_unlocked():
-        return True
-    expected = os.getenv("KB_ADMIN_PASSWORD", "")
-    if not expected:
-        st.warning("Set KB_ADMIN_PASSWORD in .env to unlock monitoring.")
+    if not current_user_is_admin():
+        st.warning("Sign in with an admin account to open this page.")
         return False
-    password = st.text_input("Admin password", type="password", key="monitor_admin_password")
-    if st.button("Unlock", key="monitor_admin_unlock"):
-        if unlock_admin(password):
-            st.rerun()
-        st.error("Wrong password.")
-    return False
+    st.session_state.fb_admin_unlocked = True
+    return True
 
 
 st.set_page_config(page_title="Monitor", layout="wide", initial_sidebar_state="expanded")
-inject_global_css()
+inject_global_css(LANGUAGE_EN)
 with st.sidebar:
     render_sidebar_nav()
-st.title("FormBridge Monitor")
+    render_account_sidebar(st.session_state.get("language_selector") or LANGUAGE_EN)
+st.markdown('<p class="fb-eyebrow">Health</p>', unsafe_allow_html=True)
+st.title("Monitor")
 st.caption(
     "Anonymized product metrics only. Private user questions and IDs are not stored in telemetry."
 )

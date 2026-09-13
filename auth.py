@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
 import secrets
 import time
@@ -58,6 +59,20 @@ def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
+def admin_emails() -> set[str]:
+    raw = os.getenv("ADMIN_EMAILS", "")
+    return {normalize_email(item) for item in raw.split(",") if item.strip()}
+
+
+def is_admin_email(email: str) -> bool:
+    return normalize_email(email) in admin_emails()
+
+
+def uses_assistant_workspace(user: dict[str, Any] | None) -> bool:
+    """Regular accounts and guests use the assistant. Admin accounts do not."""
+    return not bool((user or {}).get("is_admin"))
+
+
 def validate_credentials(email: str, password: str) -> str:
     if not EMAIL_RE.match(normalize_email(email)):
         return "invalid_email"
@@ -82,6 +97,7 @@ def register_user(email: str, password: str, display_name: str = "") -> dict[str
         "display_name": (display_name or key.split("@")[0]).strip()[:80],
         "password_salt": salt,
         "password_hash": _hash_password(password, salt),
+        "is_admin": is_admin_email(key),
         "created_at": _now(),
     }
     _write_users(users)
@@ -97,7 +113,56 @@ def authenticate(email: str, password: str) -> dict[str, Any] | None:
     actual = _hash_password(password or "", record.get("password_salt", ""))
     if not expected or not hmac.compare_digest(expected, actual):
         return None
+    # Keep ADMIN_EMAILS as the live source of truth for admin access.
+    record["is_admin"] = is_admin_email(record["email"])
+    users[normalize_email(email)] = record
+    _write_users(users)
     return public_user(record)
+
+
+def get_public_user(email: str) -> dict[str, Any] | None:
+    record = _read_users().get(normalize_email(email))
+    return public_user(record) if record else None
+
+
+def update_display_name(email: str, display_name: str) -> str:
+    """Update the signed-in display name. Returns an error code or empty."""
+    name = (display_name or "").strip()[:80]
+    if not name:
+        return "invalid_name"
+    users = _read_users()
+    key = normalize_email(email)
+    record = users.get(key)
+    if not record:
+        return "invalid"
+    record["display_name"] = name
+    users[key] = record
+    _write_users(users)
+    return ""
+
+
+def change_email(current_email: str, new_email: str, password: str) -> str:
+    """Change the account email. Returns an error code or empty."""
+    new_key = normalize_email(new_email)
+    if not EMAIL_RE.match(new_key):
+        return "invalid_email"
+    if not authenticate(current_email, password):
+        return "invalid"
+    users = _read_users()
+    old_key = normalize_email(current_email)
+    record = users.get(old_key)
+    if not record:
+        return "invalid"
+    if new_key == old_key:
+        return ""
+    if new_key in users:
+        return "exists"
+    record["email"] = new_key
+    record["is_admin"] = is_admin_email(new_key)
+    users[new_key] = record
+    del users[old_key]
+    _write_users(users)
+    return ""
 
 
 def change_password(email: str, current_password: str, new_password: str) -> str:
@@ -122,10 +187,12 @@ def change_password(email: str, current_password: str, new_password: str) -> str
 
 
 def public_user(record: dict[str, Any]) -> dict[str, Any]:
+    email = record["email"]
     return {
         "user_id": record["user_id"],
-        "email": record["email"],
-        "display_name": record.get("display_name") or record["email"].split("@")[0],
+        "email": email,
+        "display_name": record.get("display_name") or email.split("@")[0],
+        "is_admin": is_admin_email(email),
     }
 
 

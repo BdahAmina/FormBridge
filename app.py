@@ -14,7 +14,6 @@ from dotenv import dotenv_values
 
 from knowledge_base.identify import identify_form
 from models import DocumentAnalysis, humanize_guided_text, parse_guided_response
-from privacy import CONSENT_LABEL
 from rag import build_knowledge_base, passages_to_dicts
 from pdf_reader import (
     ExtractionResult,
@@ -32,6 +31,7 @@ from ui_components import (
     LANGUAGE_AR,
     LANGUAGE_EN,
     LANGUAGE_HE,
+    current_user_is_admin,
     errors,
     inject_global_css,
     lang_code,
@@ -45,8 +45,11 @@ from ui_components import (
     render_guided_result,
     render_header,
     render_landing,
+    next_onboarding_step,
+    apply_home_navigation,
     render_language_switcher,
     render_sidebar_nav,
+    render_start_windows,
     ui,
 )
 
@@ -103,6 +106,7 @@ def _init_session_state() -> None:
         "guided_tools_used": [],
         "last_guided_citations": [],
         "privacy_consent": False,
+        "fb_mode_chosen": False,
         "fb_user": None,
         "fb_guest": False,
         "conversation_id": None,
@@ -168,6 +172,7 @@ def _apply_account_actions() -> None:
             st.session_state.guided_history = row.get("guided_history") or []
             st.session_state.chat_history = row.get("chat_history") or []
             st.session_state.app_mode = row.get("mode") or "guided"
+            st.session_state.fb_mode_chosen = True
 
 
 def _reset_analysis_state() -> None:
@@ -280,21 +285,6 @@ def _map_exception_to_message(error: Exception, selected_language: str) -> str:
     if isinstance(error, PDFProcessingError):
         return err["generic"]
     return err["generic"]
-
-
-def _consent_gate(selected_language: str) -> bool:
-    code = lang_code(selected_language)
-    strings = ui(selected_language)
-    if "privacy_consent_box" not in st.session_state:
-        st.session_state.privacy_consent_box = bool(st.session_state.get("privacy_consent"))
-    consented = st.checkbox(
-        CONSENT_LABEL.get(code, CONSENT_LABEL["en"]),
-        key="privacy_consent_box",
-    )
-    st.session_state.privacy_consent = consented
-    if not consented:
-        st.warning(strings.get("consent_required", "Please accept the privacy notice."))
-    return consented
 
 
 def _run_analysis(uploaded_file, selected_language: str) -> None:
@@ -638,6 +628,7 @@ def main() -> None:
     )
 
     _init_session_state()
+    apply_home_navigation()
 
     if "language_selector" not in st.session_state:
         st.session_state.language_selector = LANGUAGE_AR
@@ -677,15 +668,21 @@ def main() -> None:
             else ("ready" if st.session_state.uploaded_file_id else "idle")
         )
     signed_in = bool(st.session_state.get("fb_user") or st.session_state.get("fb_guest"))
-    if signed_in:
+    if current_user_is_admin():
+        st.session_state.fb_admin_unlocked = True
+        st.switch_page("pages/1_Official_Sources.py")
+        return
+
+    onboard_done = (not signed_in) or next_onboarding_step(
+        bool(st.session_state.get("privacy_consent")),
+        bool(st.session_state.get("fb_mode_chosen")),
+    ) == "done"
+    if signed_in and onboard_done:
         render_header(selected_language, header_status, mode=mode_label)
 
     with st.sidebar:
         render_sidebar_nav()
         render_account_sidebar(selected_language)
-        provider = _active_provider()
-        if provider:
-            st.caption(f"LLM: {provider}")
 
     _apply_account_actions()
 
@@ -699,24 +696,11 @@ def main() -> None:
     if flash:
         st.success(flash)
 
-    if not _consent_gate(selected_language):
+    if not render_start_windows(selected_language):
         render_footer(selected_language)
         return
 
-    st.markdown(
-        f'<p class="fb-mode-label">{html.escape(strings.get("mode_picker", strings["workspace_title"]))}</p>',
-        unsafe_allow_html=True,
-    )
-    mode_label = st.radio(
-        "Mode",
-        options=["guided", "upload"],
-        format_func=lambda value: strings["mode_guided"]
-        if value == "guided"
-        else strings["mode_upload"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="app_mode",
-    )
+    mode_label = st.session_state.get("app_mode") or "guided"
 
     if mode_label == "guided":
         _render_guided_section(selected_language)
@@ -798,8 +782,8 @@ def main() -> None:
                 """
                 <style>
                 .fb-original-text {
-                  direction: rtl !important;
-                  text-align: right !important;
+                  direction: auto;
+                  text-align: start;
                   unicode-bidi: plaintext;
                   white-space: pre-wrap;
                   font-family: "Noto Sans Hebrew", "Noto Sans Arabic", "Segoe UI", sans-serif !important;
@@ -816,7 +800,7 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
             st.markdown(
-                f'<div class="fb-original-text" dir="rtl">{html.escape(doc_text)}</div>',
+                f'<div class="fb-original-text" dir="auto">{html.escape(doc_text)}</div>',
                 unsafe_allow_html=True,
             )
 
@@ -827,7 +811,7 @@ def main() -> None:
                 with c1:
                     st.markdown(f"**{strings.get('issuing_org', 'Authority')}**")
                     st.write(identity.get("authority") or "—")
-                    st.markdown("**Form**")
+                    st.markdown(f"**{strings.get('form_label', 'Form')}**")
                     form_no = identity.get("form_number") or ""
                     form_name = identity.get("form_name") or ""
                     if form_no and form_name:

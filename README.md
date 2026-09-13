@@ -189,6 +189,7 @@ LLM_PROVIDER=auto
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=groq/openai/gpt-oss-20b
 KB_ADMIN_PASSWORD=change-me
+ADMIN_EMAILS=you@example.com
 KB_INGEST_MODE=fixtures
 SOURCE_UPDATE_INTERVAL_HOURS=168
 ```
@@ -197,7 +198,8 @@ SOURCE_UPDATE_INTERVAL_HOURS=168
 |----------|---------|
 | `LLM_PROVIDER` | `auto` (Gemini then Groq), `gemini`, or `groq` |
 | `KB_INGEST_MODE` | `fixtures` (default, offline-safe) or `live` (allowlisted HTTPS only) |
-| `KB_ADMIN_PASSWORD` | Unlocks Admin sidebar links + Official Sources / Evals / Monitor |
+| `ADMIN_EMAILS` | Comma-separated emails that see Admin after sign-in (others never see it) |
+| `KB_ADMIN_PASSWORD` | Extra unlock for Admin sidebar links + Official Sources / Evals / Monitor |
 | `SOURCE_UPDATE_INTERVAL_HOURS` | Hours before KB is considered stale and refreshed |
 
 Signed-in users can change their password from the website. There is no email reset or welcome mail.
@@ -215,9 +217,9 @@ Open the URL shown in the terminal (usually `http://localhost:8501`).
 1. Accept the privacy consent.
 2. Choose **Arabic / Hebrew / English**.
 3. Use **guided mode** (default) or switch to **document upload**.
-4. Optional: open **Admin** in the sidebar, unlock with `KB_ADMIN_PASSWORD`, then use Official Sources / Evals / Monitor.
+4. Optional (admin accounts only): open **Admin** in the sidebar, unlock with `KB_ADMIN_PASSWORD`, then use Official Sources / Evals / Monitor.
 
-Admin pages (hidden until unlocked; password-protected):
+Admin pages (only for emails in `ADMIN_EMAILS`; then password-unlock):
 
 - **Official Sources** — KB status, ingest, search
 - **Evals** — run/view evaluation results

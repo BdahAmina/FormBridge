@@ -1,14 +1,14 @@
 [theme]
 base = "light"
-primaryColor = "#0B6B63"
-backgroundColor = "#F4F7F9"
+primaryColor = "#2F7A72"
+backgroundColor = "#F6F3EE"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#172B3A"
+textColor = "#24302E"
 font = "sans serif"
 
 [theme.sidebar]
-backgroundColor = "#F8FAFB"
-textColor = "#172B3A"
+backgroundColor = "#F3F0EA"
+textColor = "#24302E"
 
 [server]
 fileWatcherType = "poll"

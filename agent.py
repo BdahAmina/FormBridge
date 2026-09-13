@@ -18,6 +18,9 @@ from dataclasses import dataclass, field
 from models import (
     DocumentAnalysis,
     GuidedGuidance,
+    NOT_MENTIONED_AR,
+    NOT_MENTIONED_EN,
+    NOT_MENTIONED_HE,
     OfficialLink,
     humanize_guided_text,
     parse_analysis_response,
@@ -610,6 +613,11 @@ def analyze_document(
 ) -> DocumentAnalysis:
     """Analyze an official document and return structured output."""
     output_language, lang_code = _language_label(selected_language)
+    not_mentioned = {
+        "ar": NOT_MENTIONED_AR,
+        "he": NOT_MENTIONED_HE,
+        "en": NOT_MENTIONED_EN,
+    }.get(lang_code, NOT_MENTIONED_EN)
 
     def build_crew(llm: LLM) -> Crew:
         document_agent = Agent(
@@ -620,11 +628,12 @@ def analyze_document(
             ),
             backstory=(
                 "You are FormBridge, an expert in making official and administrative "
-                "documents understandable. You specialize in helping Arabic-speaking "
-                "people understand Hebrew documents. You identify deadlines, payments, "
-                "required documents, missing information and the actions the user must "
-                "complete. You never invent information. If something is absent, say "
-                "it was not mentioned in the document. You do not provide legal advice."
+                "documents understandable. You help people understand official Israeli "
+                f"documents and explain them clearly in {output_language}. You identify "
+                "deadlines, payments, required documents, missing information and the "
+                "actions the user must complete. You never invent information. If "
+                "something is absent, say it was not mentioned. You do not provide "
+                "legal advice."
             ),
             llm=llm,
             verbose=False,
@@ -648,7 +657,7 @@ Return ONLY valid JSON matching this schema (no markdown, no extra text):
 Rules:
 - All textual values must be written in {output_language}, except
   "suggested_formal_reply_hebrew" which must always be in Hebrew when relevant.
-- Use "Not mentioned in the document" when information is absent.
+- Use "{not_mentioned}" when information is absent.
 - urgency_level must be exactly one of: low, medium, high.
 - confidence_score must be an integer from 0 to 100.
 - If OCR may be inaccurate, reflect uncertainty in missing_or_unclear and lower confidence_score.
@@ -881,17 +890,17 @@ USER QUESTION:
 
     if _resolve_provider() == "groq":
         answer = _answer_document_directly()
-        unique_citations: list[Citation] = []
+        direct_citations: list[Citation] = []
         seen_direct: set[str] = set()
         for citation in citations:
             key = citation.source_url or citation.authority
             if key in seen_direct:
                 continue
             seen_direct.add(key)
-            unique_citations.append(citation)
-        if unique_citations:
-            answer = f"{answer}\n\n{format_citations(unique_citations, lang_code)}"
-        grounded = bool(unique_citations)
+            direct_citations.append(citation)
+        if direct_citations:
+            answer = f"{answer}\n\n{format_citations(direct_citations, lang_code)}"
+        grounded = bool(direct_citations)
         abstained = (not grounded) and any(
             phrase in answer.lower()
             for phrase in ("could not verify", "לא הצלחתי לאמת", "تعذر التحقق", "not found")
@@ -899,7 +908,7 @@ USER QUESTION:
         return ChatAnswer(
             text=answer,
             document_passages=passages,
-            official_citations=unique_citations,
+            official_citations=direct_citations,
             grounded=grounded,
             identity=identity,
             abstained=abstained,

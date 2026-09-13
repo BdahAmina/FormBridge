@@ -2,32 +2,30 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
 
 from evals.run import run_offline
-from ui_components import inject_global_css, is_admin_unlocked, render_sidebar_nav, unlock_admin
+from ui_components import (
+    LANGUAGE_EN,
+    current_user_is_admin,
+    inject_global_css,
+    render_account_sidebar,
+    render_sidebar_nav,
+)
 
 
 load_dotenv()
 
 
 def _authorized() -> bool:
-    if is_admin_unlocked():
-        return True
-    expected = os.getenv("KB_ADMIN_PASSWORD", "")
-    if not expected:
-        st.warning("Set KB_ADMIN_PASSWORD in .env to unlock evals.")
+    if not current_user_is_admin():
+        st.warning("Sign in with an admin account to open this page.")
         return False
-    password = st.text_input("Admin password", type="password", key="evals_admin_password")
-    if st.button("Unlock", key="evals_admin_unlock"):
-        if unlock_admin(password):
-            st.rerun()
-        st.error("Wrong password.")
-    return False
+    st.session_state.fb_admin_unlocked = True
+    return True
 
 
 def _render_report(report: dict) -> None:
@@ -133,9 +131,11 @@ def _render_report(report: dict) -> None:
 
 
 st.set_page_config(page_title="Evals", layout="wide", initial_sidebar_state="expanded")
-inject_global_css()
+inject_global_css(LANGUAGE_EN)
 with st.sidebar:
     render_sidebar_nav()
+    render_account_sidebar(st.session_state.get("language_selector") or LANGUAGE_EN)
+st.markdown('<p class="fb-eyebrow">Quality</p>', unsafe_allow_html=True)
 st.title("Evals")
 st.caption("Offline evaluations use fixtures only. They never crawl live government sites.")
 

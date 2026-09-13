@@ -56,6 +56,8 @@ UI_STRINGS: dict[str, dict[str, str | list[str]]] = {
             "كيف أغيّر عنواني في بطاقة الهوية؟",
         ],
         "consent_required": "وافق على إشعار الخصوصية قبل المتابعة.",
+        "consent_agree": "أوافق وأكمل",
+        "mode_window_lead": "كيف تريد أن نساعدك؟",
         "privacy_notice_title": "الخصوصية",
         "step_upload": "ارفع المستند",
         "step_language": "اختر لغة الشرح",
@@ -81,6 +83,8 @@ UI_STRINGS: dict[str, dict[str, str | list[str]]] = {
         "clear_document": "مسح المستند والبدء من جديد",
         "file_selected": "الملف المحدد",
         "analysis_title": "الملخص الذكي",
+        "overview": "نظرة عامة",
+        "form_label": "الاستمارة",
         "summary": "ملخص المستند",
         "document_type": "نوع المستند",
         "issuing_org": "الجهة المصدرة",
@@ -176,6 +180,8 @@ UI_STRINGS: dict[str, dict[str, str | list[str]]] = {
             "איך משנים כתובת במרשם האוכלוסין?",
         ],
         "consent_required": "יש לאשר את הודעת הפרטיות לפני המשך.",
+        "consent_agree": "מאשר/ת וממשיך/ה",
+        "mode_window_lead": "איך תרצו שנעזור?",
         "privacy_notice_title": "פרטיות",
         "step_upload": "העלאת מסמך",
         "step_language": "בחירת שפה",
@@ -201,6 +207,8 @@ UI_STRINGS: dict[str, dict[str, str | list[str]]] = {
         "clear_document": "ניקוי מסמך והתחלה מחדש",
         "file_selected": "קובץ שנבחר",
         "analysis_title": "תקציר חכם",
+        "overview": "סקירה כללית",
+        "form_label": "הטופס",
         "summary": "סיכום המסמך",
         "document_type": "סוג המסמך",
         "issuing_org": "הגורם המוציא",
@@ -296,6 +304,8 @@ UI_STRINGS: dict[str, dict[str, str | list[str]]] = {
             "How do I change my address on my ID?",
         ],
         "consent_required": "Please accept the privacy notice before continuing.",
+        "consent_agree": "Agree and continue",
+        "mode_window_lead": "How would you like to continue?",
         "privacy_notice_title": "Privacy",
         "step_upload": "Upload document",
         "step_language": "Choose language",
@@ -322,6 +332,8 @@ UI_STRINGS: dict[str, dict[str, str | list[str]]] = {
         "clear_document": "Clear document and start over",
         "file_selected": "Selected file",
         "analysis_title": "Smart summary",
+        "overview": "Overview",
+        "form_label": "Form",
         "summary": "Document summary",
         "document_type": "Document type",
         "issuing_org": "Issuing organization",
@@ -535,6 +547,12 @@ PRODUCT_COPY: dict[str, dict[str, str]] = {
         "auth_change_save": "حفظ كلمة المرور الجديدة",
         "auth_change_done": "تم تحديث كلمة المرور.",
         "auth_change_bad": "كلمة المرور الحالية غير صحيحة.",
+        "settings": "الإعدادات",
+        "settings_profile": "الحساب",
+        "settings_save_profile": "حفظ الحساب",
+        "settings_profile_done": "تم تحديث الحساب.",
+        "settings_name_required": "أدخل اسماً للعرض.",
+        "settings_email_password": "أدخل كلمة المرور الحالية لتغيير البريد.",
         "new_chat": "محادثة جديدة",
         "recent_chats": "محادثاتك",
         "delete_chat": "حذف",
@@ -577,6 +595,12 @@ PRODUCT_COPY: dict[str, dict[str, str]] = {
         "auth_change_save": "שמירת הסיסמה החדשה",
         "auth_change_done": "הסיסמה עודכנה.",
         "auth_change_bad": "הסיסמה הנוכחית שגויה.",
+        "settings": "הגדרות",
+        "settings_profile": "חשבון",
+        "settings_save_profile": "שמירת החשבון",
+        "settings_profile_done": "החשבון עודכן.",
+        "settings_name_required": "יש להזין שם תצוגה.",
+        "settings_email_password": "נדרשת הסיסמה הנוכחית כדי לשנות אימייל.",
         "new_chat": "שיחה חדשה",
         "recent_chats": "השיחות שלך",
         "delete_chat": "מחיקה",
@@ -619,6 +643,12 @@ PRODUCT_COPY: dict[str, dict[str, str]] = {
         "auth_change_save": "Save new password",
         "auth_change_done": "Password updated.",
         "auth_change_bad": "Current password is incorrect.",
+        "settings": "Settings",
+        "settings_profile": "Account",
+        "settings_save_profile": "Save account",
+        "settings_profile_done": "Account updated.",
+        "settings_name_required": "Enter a display name.",
+        "settings_email_password": "Enter your current password to change email.",
         "new_chat": "New conversation",
         "recent_chats": "Your conversations",
         "delete_chat": "Delete",
@@ -663,7 +693,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
             }}
             .fb-topbar, .fb-deck, .fb-panel, .fb-section-title, .fb-chat-panel,
             .fb-empty, .fb-subtitle, .fb-privacy, .fb-mode-label, .fb-masthead,
-            .fb-identity-card, footer.fb-footer {{
+            .fb-identity-card, .fb-report, .fb-brief, footer.fb-footer {{
                 direction: {page_dir} !important;
                 text-align: {page_align} !important;
             }}
@@ -1119,15 +1149,25 @@ def inject_global_css(selected_language: str | None = None) -> None:
             }
 
             .fb-report {
-                direction: rtl;
-                text-align: right;
                 font-family: "Noto Sans Arabic", "Noto Sans Hebrew", "IBM Plex Sans", sans-serif;
                 color: var(--fb-text);
                 margin-top: 0.15rem;
             }
 
+            .fb-report-ar,
+            .fb-report-he {
+                direction: rtl;
+                text-align: right;
+            }
+
+            .fb-report-en {
+                direction: ltr;
+                text-align: left;
+            }
+
             .fb-report-he { font-family: "Noto Sans Hebrew", "Heebo", "Segoe UI", sans-serif; }
             .fb-report-ar { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; }
+            .fb-report-en { font-family: "IBM Plex Sans", "Segoe UI", sans-serif; }
 
             .fb-report-meta {
                 display: flex;
@@ -1162,6 +1202,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 margin: 1rem 0 1.4rem 0;
                 padding: 0.15rem 0 1.2rem 0;
                 border-bottom: 1px solid var(--fb-border-subtle);
+                unicode-bidi: plaintext;
             }
 
             .fb-report-section {
@@ -1182,8 +1223,8 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 letter-spacing: 0.08em;
                 color: var(--fb-teal);
                 margin: 0 0 0.7rem 0;
-                padding-right: 0.7rem;
-                border-right: 2px solid var(--fb-teal);
+                padding-inline-start: 0.7rem;
+                border-inline-start: 2px solid var(--fb-teal);
             }
 
             .fb-report-text {
@@ -1195,7 +1236,8 @@ def inject_global_css(selected_language: str | None = None) -> None:
 
             .fb-report-list {
                 margin: 0;
-                padding: 0 1.1rem 0 0;
+                padding-inline-start: 1.1rem;
+                padding-inline-end: 0;
                 list-style: none;
             }
 
@@ -1205,7 +1247,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 line-height: 1.8;
                 color: var(--fb-text-secondary);
                 margin-bottom: 0.5rem;
-                padding-right: 0.25rem;
+                padding-inline-start: 0.25rem;
             }
 
             .fb-report-list li::before {
@@ -1213,7 +1255,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 color: var(--fb-teal);
                 font-weight: 700;
                 position: absolute;
-                right: -0.9rem;
+                inset-inline-start: -0.9rem;
             }
 
             .fb-report-steps {
@@ -1230,8 +1272,9 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 line-height: 1.8;
                 color: var(--fb-text-secondary);
                 margin-bottom: 0.55rem;
-                padding: 0.7rem 0.9rem 0.7rem 0;
-                padding-right: 2.55rem;
+                padding-block: 0.7rem;
+                padding-inline-start: 2.55rem;
+                padding-inline-end: 0.9rem;
                 background: var(--fb-surface-soft);
                 border-radius: 12px;
                 border: 1px solid var(--fb-border-subtle);
@@ -1240,7 +1283,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
             .fb-report-steps li::before {
                 content: counter(fbstep);
                 position: absolute;
-                right: 0.65rem;
+                inset-inline-start: 0.65rem;
                 top: 0.55rem;
                 width: 1.45rem;
                 height: 1.45rem;
@@ -1282,6 +1325,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 font-size: 0.95rem;
                 color: var(--fb-text);
                 line-height: 1.6;
+                unicode-bidi: plaintext;
             }
 
             .fb-hebrew-reply {
@@ -1545,6 +1589,10 @@ def inject_global_css(selected_language: str | None = None) -> None:
 
             .fb-chat-he div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
                 font-family: "Noto Sans Hebrew", "Heebo", "Segoe UI", sans-serif;
+            }
+
+            .fb-chat-en div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+                font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
             }
 
             .fb-chat-panel {
@@ -2168,20 +2216,21 @@ def inject_global_css(selected_language: str | None = None) -> None:
                older component rules above.
                ============================================================ */
             :root {
-                --fb-primary: #0B6B63;
-                --fb-primary-hover: #07564F;
-                --fb-primary-soft: #E8F5F2;
-                --fb-accent: #D5A84B;
-                --fb-navy: #102A43;
-                --fb-ink: #172B3A;
-                --fb-muted: #617182;
-                --fb-canvas: #F4F7F9;
+                --fb-primary: #2F7A72;
+                --fb-primary-hover: #24645D;
+                --fb-primary-soft: #E7F4F1;
+                --fb-accent: #E4B56A;
+                --fb-navy: #1F2E2C;
+                --fb-ink: #24302E;
+                --fb-muted: #6B746F;
+                --fb-canvas: #F6F3EE;
                 --fb-surface: #FFFFFF;
-                --fb-line: #DCE5EA;
-                --fb-line-strong: #C7D5DC;
-                --fb-radius: 20px;
-                --fb-shadow: 0 18px 50px rgba(16, 42, 67, .09);
-                --fb-shadow-hover: 0 22px 55px rgba(16, 42, 67, .14);
+                --fb-line: #E6E0D6;
+                --fb-line-strong: #D4CDC2;
+                --fb-radius: 22px;
+                --fb-radius-pill: 999px;
+                --fb-shadow: 0 12px 36px rgba(36, 48, 46, .06);
+                --fb-shadow-hover: 0 16px 40px rgba(36, 48, 46, .10);
             }
 
             html, body, .stApp,
@@ -2192,8 +2241,8 @@ def inject_global_css(selected_language: str | None = None) -> None:
             .stApp {
                 color: var(--fb-ink) !important;
                 background:
-                    radial-gradient(circle at 7% 2%, rgba(11,107,99,.10), transparent 24rem),
-                    radial-gradient(circle at 95% 12%, rgba(213,168,75,.10), transparent 22rem),
+                    radial-gradient(circle at 8% 0%, rgba(47,122,114,.10), transparent 22rem),
+                    radial-gradient(circle at 96% 8%, rgba(228,181,106,.12), transparent 20rem),
                     var(--fb-canvas) !important;
             }
             .block-container {
@@ -2215,9 +2264,9 @@ def inject_global_css(selected_language: str | None = None) -> None:
             .fb-logomark {
                 width: 42px !important;
                 height: 42px !important;
-                border-radius: 13px !important;
-                background: linear-gradient(145deg, #0B6B63, #084C47) !important;
-                box-shadow: 0 8px 18px rgba(11,107,99,.25);
+                border-radius: 14px !important;
+                background: linear-gradient(160deg, #3D8F85, #2F7A72) !important;
+                box-shadow: 0 8px 16px rgba(47,122,114,.22);
                 font-family: "Manrope", sans-serif !important;
             }
             .fb-wordmark {
@@ -2315,12 +2364,12 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 display: inline-flex;
                 align-items: center;
                 gap: .5rem;
-                padding: .45rem .85rem;
+                padding: .48rem .95rem;
                 margin-bottom: 1.25rem !important;
-                border: 1px solid #B9DDD7;
+                border: 1px solid #C9E4DE;
                 border-radius: 999px;
-                background: rgba(232,245,242,.88);
-                box-shadow: 0 8px 22px rgba(11,107,99,.08);
+                background: rgba(231,244,241,.92);
+                box-shadow: 0 8px 20px rgba(47,122,114,.08);
             }
             .fb-masthead > .fb-eyebrow:first-child::before {
                 content: "";
@@ -2376,9 +2425,9 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 padding: 1.3rem 1.25rem !important;
                 overflow: hidden;
                 border: 1px solid var(--fb-line) !important;
-                border-radius: 20px;
-                background: rgba(255,255,255,.88) !important;
-                box-shadow: 0 14px 38px rgba(16,42,67,.07);
+                border-radius: 22px;
+                background: rgba(255,255,255,.94) !important;
+                box-shadow: var(--fb-shadow);
                 backdrop-filter: blur(12px);
                 transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
             }
@@ -2402,13 +2451,13 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 place-items: center;
                 width: 3rem;
                 height: 3rem;
-                border-radius: 15px;
+                border-radius: 16px;
                 color: #8A671F !important;
                 background: #FBF4E4;
                 border: 1px solid #EBD9AE;
                 font-family: "Manrope", sans-serif !important;
                 font-size: .9rem;
-                font-weight: 800 !important;
+                font-weight: 750 !important;
                 line-height: 1;
             }
             .fb-point p {
@@ -2419,24 +2468,69 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 font-weight: 600;
             }
 
-            /* Controls */
-            .stButton > button {
-                min-height: 48px !important;
-                padding: .65rem 1.2rem !important;
-                border-radius: 14px !important;
-                font-weight: 800 !important;
-                transition: transform .16s ease, box-shadow .16s ease, background .16s ease !important;
+            /* Controls — pill buttons, soft and even */
+            .stButton > button,
+            [data-testid="stBaseButton-primary"],
+            [data-testid="stBaseButton-secondary"],
+            [data-testid="stBaseButton-tertiary"],
+            [data-testid="stBaseButton-primaryFormSubmit"],
+            [data-testid="stBaseButton-secondaryFormSubmit"],
+            [data-testid="stFormSubmitButton"] button,
+            [data-testid="stPopoverButton"] {
+                min-height: 44px !important;
+                padding: .58rem 1.25rem !important;
+                border-radius: var(--fb-radius-pill) !important;
+                font-weight: 650 !important;
+                letter-spacing: .01em !important;
+                box-shadow: none !important;
+                transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease !important;
             }
-            .stButton > button[kind="primary"] {
+            .stButton > button[kind="primary"],
+            [data-testid="stBaseButton-primary"],
+            [data-testid="stBaseButton-primaryFormSubmit"] {
                 color: #fff !important;
-                background: linear-gradient(135deg, #0B766D, #07564F) !important;
-                border: 1px solid #07564F !important;
-                box-shadow: 0 9px 22px rgba(11,107,99,.22) !important;
+                background: var(--fb-primary) !important;
+                border: 1px solid var(--fb-primary) !important;
+                box-shadow: 0 8px 18px rgba(47,122,114,.18) !important;
             }
-            .stButton > button:hover { transform: translateY(-1px); }
-            .stButton > button[kind="primary"]:hover {
-                background: linear-gradient(135deg, #08645C, #064741) !important;
-                box-shadow: 0 12px 26px rgba(11,107,99,.28) !important;
+            .stButton > button:hover,
+            [data-testid="stBaseButton-primary"]:hover,
+            [data-testid="stBaseButton-secondary"]:hover,
+            [data-testid="stFormSubmitButton"] button:hover {
+                transform: translateY(-1px);
+            }
+            .stButton > button[kind="primary"]:hover,
+            [data-testid="stBaseButton-primary"]:hover,
+            [data-testid="stBaseButton-primaryFormSubmit"]:hover {
+                background: var(--fb-primary-hover) !important;
+                border-color: var(--fb-primary-hover) !important;
+                box-shadow: 0 10px 22px rgba(47,122,114,.22) !important;
+            }
+            .stButton > button[kind="secondary"],
+            .stButton > button[kind="tertiary"],
+            [data-testid="stBaseButton-secondary"],
+            [data-testid="stBaseButton-secondaryFormSubmit"],
+            [data-testid="stBaseButton-tertiary"] {
+                color: var(--fb-primary) !important;
+                background: #fff !important;
+                border: 1px solid #C9DED9 !important;
+            }
+            .stButton > button[kind="secondary"]:hover,
+            [data-testid="stBaseButton-secondary"]:hover,
+            [data-testid="stBaseButton-secondaryFormSubmit"]:hover {
+                background: var(--fb-primary-soft) !important;
+                border-color: #9FCDC6 !important;
+            }
+            .stButton > button:active,
+            [data-testid="stBaseButton-primary"]:active,
+            [data-testid="stBaseButton-secondary"]:active {
+                transform: translateY(0) scale(.99);
+            }
+            .stButton > button:disabled,
+            [data-testid="stBaseButton-primary"]:disabled {
+                opacity: .55 !important;
+                box-shadow: none !important;
+                transform: none !important;
             }
             [data-testid="stTextInput"] input,
             [data-testid="stTextArea"] textarea,
@@ -2444,25 +2538,53 @@ def inject_global_css(selected_language: str | None = None) -> None:
             [data-baseweb="select"] > div,
             [data-testid="stFileUploaderDropzone"] {
                 border: 1px solid var(--fb-line-strong) !important;
-                border-radius: 14px !important;
+                border-radius: 16px !important;
                 background: #fff !important;
-                box-shadow: 0 1px 2px rgba(16,42,67,.03) !important;
+                box-shadow: 0 1px 2px rgba(36,48,46,.03) !important;
             }
             [data-testid="stTextInput"] input:focus,
             [data-testid="stTextArea"] textarea:focus,
             [data-testid="stChatInput"] textarea:focus {
                 border-color: var(--fb-primary) !important;
-                box-shadow: 0 0 0 4px rgba(11,107,99,.12) !important;
+                box-shadow: 0 0 0 4px rgba(47,122,114,.12) !important;
+            }
+            div[data-testid="stRadio"] > div {
+                gap: .35rem !important;
+                padding: .35rem !important;
+                border-radius: var(--fb-radius-pill) !important;
+                background: #fff !important;
+                border: 1px solid var(--fb-line) !important;
+                box-shadow: var(--fb-shadow) !important;
             }
             div[data-testid="stRadio"] label {
-                padding: .65rem .9rem !important;
-                border-radius: 14px !important;
-                font-weight: 700 !important;
+                padding: .7rem 1.15rem !important;
+                border-radius: var(--fb-radius-pill) !important;
+                font-weight: 650 !important;
+                border: 1px solid transparent !important;
+                background: transparent !important;
+                box-shadow: none !important;
             }
-            div[data-testid="stRadio"] label:has(input:checked) {
+            div[data-testid="stRadio"] label:hover {
                 background: var(--fb-primary-soft) !important;
+            }
+            div[data-testid="stRadio"] label[data-checked="true"],
+            div[data-testid="stRadio"] label:has(input:checked) {
+                color: #fff !important;
+                background: var(--fb-primary) !important;
                 border-color: var(--fb-primary) !important;
-                box-shadow: 0 0 0 3px rgba(11,107,99,.08) !important;
+                box-shadow: 0 6px 16px rgba(47,122,114,.18) !important;
+            }
+            [data-testid="stSegmentedControl"] {
+                background: #fff !important;
+                border: 1px solid var(--fb-line) !important;
+                border-radius: var(--fb-radius-pill) !important;
+                padding: .2rem !important;
+                box-shadow: var(--fb-shadow) !important;
+            }
+            [data-testid="stSegmentedControl"] button,
+            [data-testid="stSegmentedControl"] label {
+                border-radius: var(--fb-radius-pill) !important;
+                font-weight: 650 !important;
             }
 
             /* Chat resembles a polished product, with readable separation */
@@ -2498,7 +2620,7 @@ def inject_global_css(selected_language: str | None = None) -> None:
 
             /* Sidebar */
             [data-testid="stSidebar"] {
-                background: linear-gradient(180deg, #F8FAFB 0%, #EEF4F4 100%) !important;
+                background: linear-gradient(180deg, #F7F4EE 0%, #F0EBE3 100%) !important;
                 border-inline-end: 1px solid var(--fb-line) !important;
             }
             /* Keep the main page full-width after the sidebar is collapsed. */
@@ -2515,9 +2637,65 @@ def inject_global_css(selected_language: str | None = None) -> None:
                 direction: ltr !important;
                 z-index: 1000000 !important;
             }
-            [data-testid="stSidebar"] .stButton > button {
-                background: rgba(255,255,255,.9) !important;
-                border-color: var(--fb-line) !important;
+            [data-testid="stSidebar"] .stButton > button,
+            [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"],
+            [data-testid="stSidebar"] [data-testid="stPopover"] button {
+                background: #fff !important;
+                color: var(--fb-primary) !important;
+                border: 1px solid #D5E6E2 !important;
+                border-radius: var(--fb-radius-pill) !important;
+                box-shadow: 0 4px 12px rgba(36,48,46,.04) !important;
+                white-space: nowrap !important;
+                width: 100% !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stPopover"] button[data-testid="stPopoverButton"] {
+                width: 2.75rem !important;
+                min-width: 2.75rem !important;
+                max-width: 2.75rem !important;
+                height: 2.75rem !important;
+                min-height: 2.75rem !important;
+                padding: 0 !important;
+                justify-content: center !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stPopover"] button[data-testid="stPopoverButton"] p {
+                display: none !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stPopover"] button[data-testid="stPopoverButton"] [data-testid="stExpanderToggleIcon"] {
+                display: none !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stPageLink"] {
+                margin: 0 0 .4rem !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stPageLink"] a,
+            [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] {
+                display: flex !important;
+                align-items: center !important;
+                gap: .55rem !important;
+                min-height: 44px !important;
+                padding: .65rem .9rem !important;
+                border-radius: 16px !important;
+                background: #fff !important;
+                border: 1px solid var(--fb-line) !important;
+                box-shadow: 0 4px 12px rgba(36,48,46,.04) !important;
+                color: var(--fb-ink) !important;
+                font-weight: 650 !important;
+                unicode-bidi: isolate;
+            }
+            [data-testid="stSidebar"] [data-testid="stPageLink"] a:hover,
+            [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover {
+                background: var(--fb-primary-soft) !important;
+                border-color: #B9D8D3 !important;
+            }
+            [data-testid="stSidebar"] h3 {
+                font-family: "Manrope", sans-serif !important;
+                font-size: 1.05rem !important;
+                font-weight: 750 !important;
+                color: var(--fb-navy) !important;
+                letter-spacing: -.02em !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
+                color: var(--fb-muted) !important;
+                font-weight: 650 !important;
             }
 
             @media (max-width: 780px) {
@@ -2575,7 +2753,105 @@ def inject_global_css(selected_language: str | None = None) -> None:
             }
             [data-testid="stVerticalBlock"]:has(.fb-auth-shell) [data-testid="stTextInput"] input {
                 min-height: 48px !important;
-                border-radius: 14px !important;
+                border-radius: 16px !important;
+            }
+            [data-testid="stVerticalBlock"]:has(.fb-auth-shell) [data-testid="stForm"] .stButton > button,
+            [data-testid="stVerticalBlock"]:has(.fb-auth-shell) [data-testid="stFormSubmitButton"] button,
+            [data-testid="stVerticalBlock"]:has(.fb-auth-shell) [data-testid="stBaseButton-secondary"] {
+                border-radius: var(--fb-radius-pill) !important;
+            }
+
+            h1, [data-testid="stHeading"] h1 {
+                font-family: "Manrope", "Noto Sans Arabic", "Noto Sans Hebrew", sans-serif !important;
+                font-weight: 750 !important;
+                letter-spacing: -.03em !important;
+                color: var(--fb-navy) !important;
+            }
+            [data-testid="stDataFrame"],
+            [data-testid="stDataFrameResizable"] {
+                border: 1px solid var(--fb-line) !important;
+                border-radius: 18px !important;
+                overflow: hidden !important;
+                box-shadow: var(--fb-shadow) !important;
+            }
+            [data-testid="stMetric"] {
+                background: #fff;
+                border: 1px solid var(--fb-line);
+                border-radius: 18px;
+                padding: .85rem 1rem;
+                box-shadow: var(--fb-shadow);
+            }
+            [data-testid="stFileUploader"] section {
+                border: 1.5px dashed #C5D5D0 !important;
+                border-radius: 20px !important;
+                background: #FFFdf8 !important;
+            }
+            [data-testid="stFileUploader"] section:hover {
+                border-color: var(--fb-primary) !important;
+                background: var(--fb-primary-soft) !important;
+            }
+            [data-testid="stExpander"] {
+                border: 1px solid var(--fb-line) !important;
+                border-radius: 18px !important;
+                background: #fff !important;
+            }
+            [data-testid="stDialog"] [data-testid="stForm"] {
+                background: transparent !important;
+                border: 0 !important;
+                box-shadow: none !important;
+                padding: 0 0 .4rem !important;
+            }
+            [data-testid="stElementContainer"]:has(.fb-start-card),
+            [data-testid="stElementContainer"]:has(.fb-start-card) + [data-testid="stElementContainer"],
+            [data-testid="stElementContainer"]:has(.fb-start-card) + [data-testid="stElementContainer"] + [data-testid="stElementContainer"] {
+                max-width: 400px !important;
+                width: min(400px, 92vw) !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+            }
+            [data-testid="stElementContainer"]:has(.fb-start-card) {
+                margin-top: 6vh !important;
+            }
+            .fb-start-card {
+                background: #FBF8F3;
+                border: 1px solid #E7E1D6;
+                border-radius: 16px;
+                padding: 1rem 1.15rem .35rem;
+                box-shadow: 0 8px 20px rgba(36, 48, 46, .07);
+            }
+            .fb-start-card .fb-start-title {
+                margin: 0 0 .45rem;
+                font-size: 1.12rem;
+                font-weight: 750;
+                letter-spacing: -.01em;
+                color: var(--fb-navy);
+            }
+            .fb-start-card p {
+                margin: 0 0 .55rem;
+                line-height: 1.55;
+                font-size: .92rem;
+                color: #5C6662;
+                text-align: start;
+            }
+            [data-testid="stElementContainer"]:has(.fb-start-card) + [data-testid="stElementContainer"] .stButton > button,
+            [data-testid="stElementContainer"]:has(.fb-start-card) + [data-testid="stElementContainer"] + [data-testid="stElementContainer"] .stButton > button,
+            [data-testid="stElementContainer"]:has(.fb-start-card) + [data-testid="stElementContainer"] [data-testid="stBaseButton-primary"],
+            [data-testid="stElementContainer"]:has(.fb-start-card) + [data-testid="stElementContainer"] + [data-testid="stElementContainer"] [data-testid="stBaseButton-secondary"] {
+                min-height: 44px !important;
+                height: auto !important;
+                padding: .7rem 1.1rem !important;
+                margin-top: .35rem !important;
+                font-size: .95rem !important;
+                font-weight: 650 !important;
+                border-radius: 999px !important;
+                box-shadow: none !important;
+            }
+            [data-testid="stElementContainer"]:has(.fb-start-card--consent) + [data-testid="stElementContainer"] .stButton > button,
+            [data-testid="stElementContainer"]:has(.fb-start-card--consent) + [data-testid="stElementContainer"] [data-testid="stBaseButton-primary"] {
+                min-height: 52px !important;
+                font-size: 1.02rem !important;
+                font-weight: 700 !important;
+                padding: .85rem 1.2rem !important;
             }
         </style>
         """,
@@ -2587,11 +2863,24 @@ def is_admin_unlocked() -> bool:
     return bool(st.session_state.get("fb_admin_unlocked"))
 
 
+def current_user_is_admin() -> bool:
+    user = st.session_state.get("fb_user") or {}
+    return bool(user.get("is_admin"))
+
+
+def open_admin_console() -> None:
+    """Send a signed-in admin to the data pages, never the regular assistant."""
+    st.session_state.fb_admin_unlocked = True
+    st.switch_page("pages/1_Official_Sources.py")
+
+
 def unlock_admin(password: str) -> bool:
     """Validate KB_ADMIN_PASSWORD and mark this browser session as admin."""
     import hmac
     import os
 
+    if not current_user_is_admin():
+        return False
     expected = (os.getenv("KB_ADMIN_PASSWORD") or "").strip()
     if not expected or not password:
         return False
@@ -2605,41 +2894,115 @@ def lock_admin() -> None:
     st.session_state.fb_admin_unlocked = False
 
 
-def render_sidebar_nav() -> None:
-    """Home always visible; admin links only after password unlock for this session."""
-    import os
+def next_onboarding_step(consent: bool, mode_chosen: bool) -> str:
+    """Return consent, mode, or done for the signed-in start flow."""
+    if not consent:
+        return "consent"
+    if not mode_chosen:
+        return "mode"
+    return "done"
 
-    st.markdown("### FormBridge")
-    st.page_link("app.py", label="Home", icon="🏠")
 
-    if is_admin_unlocked():
-        st.divider()
-        st.caption("Admin")
-        st.page_link("pages/1_Official_Sources.py", label="Official Sources", icon="📚")
-        st.page_link("pages/2_Evals.py", label="Evals", icon="🧪")
-        st.page_link("pages/3_Monitor.py", label="Monitor", icon="📊")
-        if st.button("Lock admin", key="fb_admin_lock_btn", use_container_width=True):
-            lock_admin()
+def go_to_help_home() -> None:
+    """Show the ask/upload chooser as Home without revoking privacy consent."""
+    st.session_state.fb_mode_chosen = False
+
+
+def apply_home_navigation() -> None:
+    """Honor ?home=1 from the sidebar Home link."""
+    raw = st.query_params.get("home")
+    if isinstance(raw, (list, tuple)):
+        raw = raw[0] if raw else None
+    if str(raw or "") not in {"1", "true"}:
+        return
+    if st.session_state.get("fb_user") or st.session_state.get("fb_guest"):
+        go_to_help_home()
+    try:
+        del st.query_params["home"]
+    except KeyError:
+        pass
+
+
+def reset_onboarding() -> None:
+    st.session_state.privacy_consent = False
+    st.session_state.fb_mode_chosen = False
+    st.session_state.pop("privacy_consent_box", None)
+
+
+def render_start_windows(selected_language: str) -> bool:
+    """Show a compact agree card, then ask/upload. True when the workspace may open."""
+    from privacy import CONSENT_LABEL, PRIVACY_NOTICE
+
+    if current_user_is_admin():
+        return True
+
+    strings = ui(selected_language)
+    code = lang_code(selected_language)
+    page_dir = "ltr" if selected_language == LANGUAGE_EN else "rtl"
+    step = next_onboarding_step(
+        bool(st.session_state.get("privacy_consent")),
+        bool(st.session_state.get("fb_mode_chosen")),
+    )
+    if step == "done":
+        return True
+
+    if step == "consent":
+        notice = html.escape(PRIVACY_NOTICE.get(code, PRIVACY_NOTICE["en"])).replace(
+            "FormBridge", '<bdi dir="ltr">FormBridge</bdi>'
+        )
+        consent = html.escape(CONSENT_LABEL.get(code, CONSENT_LABEL["en"]))
+        st.markdown(
+            f'<section class="fb-start-card fb-start-card--consent" dir="{page_dir}">'
+            f'<p class="fb-start-title">{html.escape(strings["privacy_notice_title"])}</p>'
+            f"<p>{notice}</p>"
+            f"<p>{consent}</p>"
+            f"</section>",
+            unsafe_allow_html=True,
+        )
+        if st.button(strings["consent_agree"], type="primary", width="stretch"):
+            st.session_state.privacy_consent = True
             st.rerun()
+        return False
+
+    st.markdown(
+        f'<section class="fb-start-card fb-start-card--mode" dir="{page_dir}">'
+        f'<p class="fb-start-title">{html.escape(strings["mode_picker"])}</p>'
+        f"<p>{html.escape(strings['mode_window_lead'])}</p>"
+        f"</section>",
+        unsafe_allow_html=True,
+    )
+    if st.button(strings["mode_guided"], type="primary", width="stretch"):
+        st.session_state.app_mode = "guided"
+        st.session_state.fb_mode_chosen = True
+        st.rerun()
+    if st.button(strings["mode_upload"], type="secondary", width="stretch"):
+        st.session_state.app_mode = "upload"
+        st.session_state.fb_mode_chosen = True
+        st.rerun()
+    return False
+
+
+def render_sidebar_nav() -> None:
+    """Regular users see Home. Admins see data pages only."""
+    st.markdown("### FormBridge")
+
+    if current_user_is_admin():
+        st.session_state.fb_admin_unlocked = True
+        st.caption("Admin")
+        st.page_link("pages/1_Official_Sources.py", label="\u2066Official Sources\u2069", icon="📚")
+        st.page_link("pages/2_Evals.py", label="\u2066Evals\u2069", icon="🧪")
+        st.page_link("pages/3_Monitor.py", label="\u2066Monitor\u2069", icon="📊")
         return
 
-    with st.expander("Admin"):
-        expected = (os.getenv("KB_ADMIN_PASSWORD") or "").strip()
-        if not expected:
-            st.caption("Admin access is not configured.")
-            return
-        password = st.text_input(
-            "Password",
-            type="password",
-            key="fb_sidebar_admin_password",
-            label_visibility="collapsed",
-            placeholder="Password",
-        )
-        if st.button("Unlock", key="fb_admin_unlock_btn", use_container_width=True):
-            if unlock_admin(password):
-                st.rerun()
-            else:
-                st.error("Wrong password.")
+    home_params = {"home": "1"}
+    lang = st.query_params.get("lang")
+    if isinstance(lang, (list, tuple)):
+        lang = lang[0] if lang else None
+    if lang:
+        home_params["lang"] = str(lang)
+    st.page_link("app.py", label="Home", icon="🏠", query_params=home_params)
+    if is_admin_unlocked():
+        lock_admin()
 
 
 def render_language_switcher(selected_language: str) -> str:
@@ -2680,10 +3043,10 @@ def render_language_switcher(selected_language: str) -> str:
             height: 2.75rem !important;
             min-height: 2.75rem !important;
             padding: 0 !important;
-            border-radius: 13px !important;
-            border: 1px solid #C7D9D6 !important;
-            background: rgba(255,255,255,.94) !important;
-            box-shadow: 0 7px 20px rgba(16,42,67,.08) !important;
+            border-radius: 999px !important;
+            border: 1px solid #D4E4E0 !important;
+            background: rgba(255,255,255,.96) !important;
+            box-shadow: 0 6px 16px rgba(36,48,46,.06) !important;
             justify-content: center !important;
             font-size: 1rem !important;
             line-height: 1 !important;
@@ -2923,6 +3286,14 @@ def _urgency_badge(level: str, strings: dict[str, str]) -> str:
     return f'<span class="fb-badge {css.get(level, css["medium"])}">{html.escape(label)}</span>'
 
 
+def _missing_label(code: str) -> str:
+    return {
+        "ar": NOT_MENTIONED_AR,
+        "he": NOT_MENTIONED_HE,
+        "en": NOT_MENTIONED_EN,
+    }.get(code, NOT_MENTIONED_AR)
+
+
 def _is_missing(value: str, not_mentioned: str) -> bool:
     if not value or not value.strip():
         return True
@@ -2974,7 +3345,7 @@ def _report_kv(label: str, value: str) -> str:
 def render_analysis_dashboard(analysis: DocumentAnalysis, selected_language: str) -> None:
     strings = ui(selected_language)
     code = lang_code(selected_language)
-    not_mentioned = NOT_MENTIONED_AR if code == "ar" else NOT_MENTIONED_HE
+    not_mentioned = _missing_label(code)
 
     st.markdown(
         f'<div class="fb-section-title">{html.escape(strings["analysis_title"])}</div>',
@@ -3021,9 +3392,8 @@ def render_analysis_dashboard(analysis: DocumentAnalysis, selected_language: str
             kv_items.append(_report_kv(strings[label_key], value))
 
     if kv_items:
-        overview_title = "نظرة عامة" if code == "ar" else "סקירה כללית"
         report_html += _report_section(
-            overview_title,
+            strings["overview"],
             f'<div class="fb-report-kv">{"".join(kv_items)}</div>',
         )
 
@@ -3270,6 +3640,10 @@ def render_auth_panel(selected_language: str) -> None:
                 if user:
                     st.session_state.fb_user = user
                     st.session_state.fb_guest = False
+                    if user.get("is_admin"):
+                        open_admin_console()
+                        return
+                    lock_admin()
                     st.rerun()
                 st.error(strings["auth_error_invalid"])
 
@@ -3314,6 +3688,10 @@ def render_auth_panel(selected_language: str) -> None:
                         st.session_state.fb_user = user
                         st.session_state.fb_guest = False
                         st.session_state.fb_flash = strings["auth_welcome_sent"]
+                        if user.get("is_admin"):
+                            open_admin_console()
+                            return
+                        lock_admin()
                         st.rerun()
                     except ValueError as error:
                         if str(error) == "exists":
@@ -3326,7 +3704,122 @@ def render_auth_panel(selected_language: str) -> None:
         if st.button(strings["auth_guest"], key="fb_guest_btn", type="secondary", use_container_width=True):
             st.session_state.fb_guest = True
             st.session_state.fb_user = None
+            reset_onboarding()
+            lock_admin()
             st.rerun()
+
+
+def _refresh_signed_in_user(email: str) -> None:
+    from auth import get_public_user
+
+    refreshed = get_public_user(email)
+    if refreshed:
+        st.session_state.fb_user = refreshed
+
+
+def open_settings_window(selected_language: str) -> None:
+    """Open account settings in a centered modal window."""
+    strings = ui(selected_language)
+    user = st.session_state.get("fb_user") or {}
+    st.session_state.fb_set_name = user.get("display_name") or ""
+    st.session_state.fb_set_email = user.get("email") or ""
+    st.session_state.pop("fb_set_email_password", None)
+    st.session_state.pop("fb_set_pw_current", None)
+    st.session_state.pop("fb_set_pw_new", None)
+    st.session_state.pop("fb_set_pw_confirm", None)
+
+    @st.dialog(strings["settings"], width="large")
+    def _settings_window() -> None:
+        render_settings_dialog(selected_language)
+
+    _settings_window()
+
+
+def render_settings_dialog(selected_language: str) -> None:
+    from auth import change_email, change_password, update_display_name
+
+    strings = ui(selected_language)
+    user = st.session_state.get("fb_user") or {}
+
+    st.markdown(f"**{strings['settings_profile']}**")
+    with st.form("fb_settings_profile_form", border=False):
+        name = st.text_input(strings["auth_name"], key="fb_set_name")
+        email = st.text_input(strings["auth_email"], key="fb_set_email")
+        email_password = st.text_input(
+            strings["auth_current_password"],
+            type="password",
+            key="fb_set_email_password",
+            help=strings["settings_email_password"],
+        )
+        save_profile = st.form_submit_button(
+            strings["settings_save_profile"],
+            type="primary",
+            use_container_width=True,
+        )
+    if save_profile:
+        current_email = user.get("email") or ""
+        problem = update_display_name(current_email, name)
+        if problem == "invalid_name":
+            st.error(strings["settings_name_required"])
+        elif problem:
+            st.error(strings["auth_change_bad"])
+        else:
+            next_email = (email or "").strip()
+            if next_email and next_email.lower() != current_email.lower():
+                if not email_password:
+                    st.error(strings["settings_email_password"])
+                else:
+                    email_problem = change_email(current_email, next_email, email_password)
+                    if email_problem == "invalid_email":
+                        st.error(strings["auth_error_email"])
+                    elif email_problem == "exists":
+                        st.error(strings["auth_error_exists"])
+                    elif email_problem == "invalid":
+                        st.error(strings["auth_change_bad"])
+                    else:
+                        current_email = next_email
+                        st.session_state.fb_settings_open = False
+                        _refresh_signed_in_user(current_email)
+                        st.rerun()
+            else:
+                st.session_state.fb_settings_open = False
+                _refresh_signed_in_user(current_email)
+                st.rerun()
+
+    st.markdown(f"**{strings['auth_change_password']}**")
+    with st.form("fb_settings_password_form", border=False):
+        current = st.text_input(
+            strings["auth_current_password"],
+            type="password",
+            key="fb_set_pw_current",
+        )
+        new_password = st.text_input(
+            strings["auth_password"],
+            type="password",
+            key="fb_set_pw_new",
+            help=strings["auth_password_hint"],
+        )
+        confirm = st.text_input(
+            strings["auth_confirm"],
+            type="password",
+            key="fb_set_pw_confirm",
+        )
+        save_password = st.form_submit_button(
+            strings["auth_change_save"],
+            type="primary",
+            use_container_width=True,
+        )
+    if save_password:
+        if new_password != confirm:
+            st.error(strings["auth_error_mismatch"])
+        else:
+            problem = change_password(user.get("email") or "", current, new_password)
+            if not problem:
+                st.success(strings["auth_change_done"])
+            elif problem == "weak_password":
+                st.error(strings["auth_error_weak"])
+            else:
+                st.error(strings["auth_change_bad"])
 
 
 def render_account_sidebar(selected_language: str) -> None:
@@ -3336,68 +3829,70 @@ def render_account_sidebar(selected_language: str) -> None:
     user = st.session_state.get("fb_user")
     if user:
         st.caption(user.get("display_name") or user["email"])
-        if st.button(strings["auth_logout"], key="fb_logout_btn", type="secondary"):
+        if st.button(
+            strings["auth_logout"],
+            key="fb_logout_btn",
+            type="secondary",
+            width="stretch",
+            wrap=False,
+        ):
             st.session_state.fb_user = None
             st.session_state.fb_guest = False
             st.session_state.fb_auth_view = "login"
             st.session_state.fb_auth_segment = "login"
-            st.rerun()
-        with st.expander(strings["auth_change_password"]):
-            from auth import change_password
-
-            with st.form("fb_change_password_form", border=False):
-                current = st.text_input(
-                    strings["auth_current_password"],
-                    type="password",
-                    key="fb_pw_current",
-                )
-                new_password = st.text_input(
-                    strings["auth_password"],
-                    type="password",
-                    key="fb_pw_new",
-                    help=strings["auth_password_hint"],
-                )
-                confirm = st.text_input(
-                    strings["auth_confirm"],
-                    type="password",
-                    key="fb_pw_confirm",
-                )
-                submitted = st.form_submit_button(
-                    strings["auth_change_save"],
-                    type="primary",
-                    use_container_width=True,
-                )
-            if submitted:
-                if new_password != confirm:
-                    st.error(strings["auth_error_mismatch"])
-                else:
-                    problem = change_password(user["email"], current, new_password)
-                    if not problem:
-                        st.success(strings["auth_change_done"])
-                    elif problem == "weak_password":
-                        st.error(strings["auth_error_weak"])
-                    else:
-                        st.error(strings["auth_change_bad"])
-        if st.button(strings["new_chat"], key="fb_new_chat_btn", type="secondary"):
-            st.session_state["_fb_new_chat"] = True
-            st.rerun()
-        rows = list_conversations(user["user_id"])[:12]
-        with st.popover("☰  " + strings["recent_chats"]):
-            if not rows:
-                st.caption(strings["chat_empty"])
-            for row in rows:
-                title = str(row.get("title") or row.get("id") or "")
-                left, right = st.columns([5, 1])
-                if left.button(title, key=f"fb_load_{row['id']}", use_container_width=True):
-                    st.session_state["_fb_load_chat"] = row["id"]
-                    st.rerun()
-                if right.button("✕", key=f"fb_del_{row['id']}", help=strings["delete_chat"]):
-                    delete_conversation(user["user_id"], row["id"])
-                    st.rerun()
+            st.session_state.fb_settings_open = False
+            reset_onboarding()
+            lock_admin()
+            st.switch_page("app.py")
+        if st.button(
+            strings["settings"],
+            key="fb_settings_btn",
+            type="secondary",
+            icon=":material/settings:",
+            width="stretch",
+            wrap=False,
+        ):
+            open_settings_window(selected_language)
+        if not user.get("is_admin"):
+            if st.button(
+                strings["new_chat"],
+                key="fb_new_chat_btn",
+                type="secondary",
+                width="stretch",
+                wrap=False,
+            ):
+                st.session_state["_fb_new_chat"] = True
+                st.session_state.fb_mode_chosen = False
+                st.rerun()
+            rows = list_conversations(user["user_id"])[:12]
+            with st.popover(
+                "\u200b",
+                icon=":material/forum:",
+                help=strings["recent_chats"],
+                width="content",
+            ):
+                if not rows:
+                    st.caption(strings["chat_empty"])
+                for row in rows:
+                    title = str(row.get("title") or row.get("id") or "")
+                    left, right = st.columns([5, 1])
+                    if left.button(title, key=f"fb_load_{row['id']}", use_container_width=True):
+                        st.session_state["_fb_load_chat"] = row["id"]
+                        st.rerun()
+                    if right.button("✕", key=f"fb_del_{row['id']}", help=strings["delete_chat"]):
+                        delete_conversation(user["user_id"], row["id"])
+                        st.rerun()
     elif st.session_state.get("fb_guest"):
         st.caption(strings["account_guest"])
-        if st.button(strings["new_chat"], key="fb_new_chat_guest", type="secondary"):
+        if st.button(
+            strings["new_chat"],
+            key="fb_new_chat_guest",
+            type="secondary",
+            width="stretch",
+            wrap=False,
+        ):
             st.session_state["_fb_new_chat"] = True
+            st.session_state.fb_mode_chosen = False
             st.rerun()
 
 

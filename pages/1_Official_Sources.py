@@ -2,37 +2,36 @@
 
 from __future__ import annotations
 
-import os
-
 import streamlit as st  # pyright: ignore[reportMissingImports]
 from dotenv import load_dotenv
 
 from knowledge_base.service import KnowledgeBaseService
-from ui_components import inject_global_css, is_admin_unlocked, render_sidebar_nav, unlock_admin
+from ui_components import (
+    LANGUAGE_EN,
+    current_user_is_admin,
+    inject_global_css,
+    render_account_sidebar,
+    render_sidebar_nav,
+)
 
 
 load_dotenv()
 
 
 def _authorized() -> bool:
-    if is_admin_unlocked():
-        return True
-    expected = os.getenv("KB_ADMIN_PASSWORD", "")
-    if not expected:
-        st.warning("Set KB_ADMIN_PASSWORD in .env to unlock source management.")
+    if not current_user_is_admin():
+        st.warning("Sign in with an admin account to open this page.")
         return False
-    password = st.text_input("Admin password", type="password", key="os_admin_password")
-    if st.button("Unlock", key="os_admin_unlock"):
-        if unlock_admin(password):
-            st.rerun()
-        st.error("Wrong password.")
-    return False
+    st.session_state.fb_admin_unlocked = True
+    return True
 
 
 st.set_page_config(page_title="Official Sources", layout="wide", initial_sidebar_state="expanded")
-inject_global_css()
+inject_global_css(LANGUAGE_EN)
 with st.sidebar:
     render_sidebar_nav()
+    render_account_sidebar(st.session_state.get("language_selector") or LANGUAGE_EN)
+st.markdown('<p class="fb-eyebrow">Knowledge base</p>', unsafe_allow_html=True)
 st.title("Official Sources")
 st.caption("FormBridge is not affiliated with the Israeli government. Sources are informational only.")
 

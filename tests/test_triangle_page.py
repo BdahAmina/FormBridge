@@ -1,8 +1,9 @@
-"""The Triangle page renders, reacts to presets and inputs, and fits the shared sidebar."""
+"""The Triangle page is a blank #FEEFEF page that fits the shared sidebar."""
 
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
+from streamlit.testing.v1.element_tree import Block
 
 
 APP = Path(__file__).resolve().parents[1] / "app.py"
@@ -17,29 +18,15 @@ def _open_triangle_page(**state: object) -> AppTest:
     return at.run()
 
 
-def test_page_solves_the_default_right_triangle() -> None:
+def test_page_is_blank_with_a_feefef_background() -> None:
     at = _open_triangle_page()
     assert not at.exception
-    assert at.title[0].value == "Triangle"
-    assert at.subheader[0].value == "Right scalene triangle"
-    assert [(metric.label, metric.value) for metric in at.metric] == [
-        ("Perimeter", "12"),
-        ("Area", "6"),
-        ("Inradius", "1"),
-        ("Circumradius", "2.5"),
-    ]
-    assert any("<svg" in block.value for block in at.markdown)
-
-
-def test_presets_fill_the_sides_and_bad_sides_show_an_error() -> None:
-    at = _open_triangle_page()
-    next(button for button in at.button if button.label == "Equilateral").click().run()
-    assert [field.value for field in at.number_input] == [5.0, 5.0, 5.0]
-    assert at.subheader[0].value == "Acute equilateral triangle"
-
-    at.number_input(key="tri_side_c").set_value(20.0).run()
-    assert "can't form a triangle" in at.error[0].value
-    assert not at.subheader
+    elements = [node for node in at.main if not isinstance(node, Block)]
+    assert all(
+        node.type == "markdown" and node.value.strip().startswith("<style>")
+        for node in elements
+    )
+    assert elements[-1].value == "<style>.stApp { background: #FEEFEF !important; }</style>"
 
 
 def test_sidebar_links_to_the_page() -> None:

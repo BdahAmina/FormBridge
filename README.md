@@ -225,7 +225,7 @@ Admin pages (only for emails in `ADMIN_EMAILS`; then password-unlock):
 - **Evals** — run/view evaluation results
 - **Monitor** — anonymized counts, latency, forms, feedback, KB + eval status
 
-Everyone also sees **Triangle** in the sidebar: enter three side lengths (or pick a preset) to draw the triangle to scale and see its angles, area, perimeter, inradius, circumradius, and type.
+Everyone also sees **Triangle** in the sidebar. For now it is a blank page with a `#FEEFEF` background.
 
 ## Project Structure
 
@@ -240,7 +240,6 @@ FormBridge/
 ├── privacy.py             # Consent text + sensitive-value masking
 ├── telemetry.py           # Anonymized events + feedback
 ├── ui_components.py       # Branding, i18n, RTL, cards
-├── triangle.py            # Triangle geometry + SVG drawing for the Triangle page
 ├── knowledge_base/        # Official-source RAG (ingest/retrieve/CLI)
 ├── pages/
 │   ├── 1_Official_Sources.py

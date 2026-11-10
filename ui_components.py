@@ -2983,7 +2983,7 @@ def render_start_windows(selected_language: str) -> bool:
 
 
 def render_sidebar_nav() -> None:
-    """Regular users see Home. Admins see data pages only."""
+    """Regular users see Home and Triangle. Admins see the data pages and Triangle."""
     st.markdown("### FormBridge")
 
     if current_user_is_admin():
@@ -2992,6 +2992,7 @@ def render_sidebar_nav() -> None:
         st.page_link("pages/1_Official_Sources.py", label="\u2066Official Sources\u2069", icon="📚")
         st.page_link("pages/2_Evals.py", label="\u2066Evals\u2069", icon="🧪")
         st.page_link("pages/3_Monitor.py", label="\u2066Monitor\u2069", icon="📊")
+        st.page_link("pages/4_Triangle.py", label="\u2066Triangle\u2069", icon="🔺")
         return
 
     home_params = {"home": "1"}
@@ -3001,6 +3002,7 @@ def render_sidebar_nav() -> None:
     if lang:
         home_params["lang"] = str(lang)
     st.page_link("app.py", label="Home", icon="🏠", query_params=home_params)
+    st.page_link("pages/4_Triangle.py", label="\u2066Triangle\u2069", icon="🔺")
     if is_admin_unlocked():
         lock_admin()
 
